@@ -1,0 +1,49 @@
+{
+	"author": {
+		"name": "Mikael 'Lilleman' Göransson",
+		"email": "lilleman@larvit.se",
+		"url": "http://larvit.se"
+	},
+	"private": false,
+	"dependencies": {
+		"larvitslugify": "latest",
+		"mime-types": "latest",
+		"larvitdb": "latest",
+		"winston": "latest",
+		"lwip": "latest"
+	},
+	"description": "Image resizing, admin page and database for images meta data.",
+	"devDependencies": {
+		"mocha": "latest",
+		"pre-git": "latest"
+	},
+	"pre-commit": [
+		"npm test",
+		"eslint ./"
+	],
+	"keywords": [
+		"img",
+		"images",
+		"imageadmin"
+	],
+	"main": "img.js",
+	"name": "larvitimages",
+	"repository": {
+		"url": "https://github.com/larvit/larvitimages",
+		"type": "git"
+	},
+	"version": "0.0.1-rc1",
+	"readmeFilename": "README.md",
+	"bugs": {
+		"url": "https://github.com/larvit/larvitimages/issues"
+	},
+	"homepage": "https://github.com/larvit/larvitimages",
+	"scripts": {
+		"test": "mocha"
+	},
+	"license": "MIT",
+	"maintainers": [{
+		"name": "lilleman",
+		"email": "lilleman@larvit.se"
+	}]
+}
