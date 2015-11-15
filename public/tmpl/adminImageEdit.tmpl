@@ -9,7 +9,8 @@
 
 		<% if (global.urlParsed.query.id) { %>
 		<div class="row">
-			<img src="<%= global.formFields.fsPath %>" alt="" />
+			<img src="/uploaded/images/<%= global.formFields.slug %>?height=200" alt="" />
+			<p>Path: /uploaded/images/<%= global.formFields.slug %></p>
 		</div>
 		<% } %>
 
