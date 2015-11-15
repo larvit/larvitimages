@@ -1,6 +1,7 @@
 'use strict';
 
-var db           = require('larvitdb'),
+var _            = require('lodash'),
+    db           = require('larvitdb'),
     fs           = require('fs'),
     log          = require('winston'),
     lwip         = require('lwip'),
@@ -60,6 +61,13 @@ function getImages(options, cb) {
 
 	if (options.slugs !== undefined && ! (options.slugs instanceof Array))
 		options.slugs = [options.slugs];
+
+	// Trim slugs from slashes
+	if (options.slugs) {
+		_.each(options.slugs, function(slug, idx) {
+			options.slugs[idx] = _.trim(slug, '/');
+		});
+	}
 
 	// Make sure there is an invalid ID in the id list if it is empty
 	// Since the most logical thing to do is replying with an empty set
@@ -209,6 +217,7 @@ function saveImage(data, cb) {
 			return;
 		} else {
 			data.slug = slugify(data.slug, {'save': ['.', '/']});
+			data.slug = _.trim(data.slug, '/');
 		}
 
 		// Make sure it is not occupied by another image

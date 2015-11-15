@@ -3,11 +3,12 @@
 var mime = require('mime-types'),
     lwip = require('lwip'),
     img  = require('larvitimages'),
-    url  = require('url');
+    url  = require('url'),
+    _    = require('lodash');
 
 exports.run = function(req, res, cb) {
 	var request = url.parse(req.url, true),
-	    slug    = request.pathname.substring(17); // /uploaded/images/
+	    slug    = _.trim(request.pathname.substring(17), '/'); // /uploaded/images/
 
 	function serverError() {
 		res.writeHead(500, {'Content-Type': 'text/plain' });

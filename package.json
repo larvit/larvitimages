@@ -6,11 +6,12 @@
 	},
 	"private": false,
 	"dependencies": {
-		"larvitslugify": "latest",
-		"mime-types": "latest",
 		"larvitdb": "latest",
-		"winston": "latest",
-		"lwip": "latest"
+		"larvitslugify": "latest",
+		"lodash": "latest",
+		"lwip": "latest",
+		"mime-types": "latest",
+		"winston": "latest"
 	},
 	"description": "Image resizing, admin page and database for images meta data.",
 	"devDependencies": {
