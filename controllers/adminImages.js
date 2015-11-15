@@ -12,7 +12,7 @@ exports.run = function(req, res, callback) {
 		return;
 	}
 
-	images.getImages(function(err, rows) {
+	images.getImages({'limit': false}, function(err, rows) {
 		data.images = rows;
 		callback(null, req, res, data);
 	});
