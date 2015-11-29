@@ -33,7 +33,7 @@
 		"url": "https://github.com/larvit/larvitimages",
 		"type": "git"
 	},
-	"version": "0.0.1-rc4",
+	"version": "0.1.0",
 	"readmeFilename": "README.md",
 	"bugs": {
 		"url": "https://github.com/larvit/larvitimages/issues"
