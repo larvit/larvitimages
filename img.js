@@ -34,7 +34,7 @@ createTablesIfNotExists(function(err) {
  * Get images
  *
  * @param obj options - { // All options are optional!
- *                        'slugs': ['blu', 'bla'],
+ *                        'slugs': ['blu', 'bla'], // With or without file ending
  *                        'ids': [32,4],
  *                        'limit': 10, // Defaults to 10, explicitly give false for no limit
  *                        'offset': 20,
@@ -98,7 +98,7 @@ function getImages(options, cb) {
 
 	// Only get posts with the current slugs
 	if (options.slugs !== undefined) {
-		sql += '	AND slug IN (';
+		sql += '	AND (slug IN (';
 
 		i = 0;
 		while (options.slugs[i] !== undefined) {
@@ -108,7 +108,18 @@ function getImages(options, cb) {
 			i ++;
 		}
 
-		sql = sql.substring(0, sql.length - 1) + ')\n';
+		// Select by slug without file ending
+		sql = sql.substring(0, sql.length - 1) + ') OR SUBSTRING(slug, 1, CHAR_LENGTH(slug) - 1 - CHAR_LENGTH(SUBSTRING_INDEX(slug, \'.\', -1))) IN (';
+
+		i = 0;
+		while (options.slugs[i] !== undefined) {
+			sql += '?,';
+			dbFields.push(options.slugs[i]);
+
+			i ++;
+		}
+
+		sql = sql.substring(0, sql.length - 1) + '))\n';
 	}
 
 	// Only get posts with given ids
