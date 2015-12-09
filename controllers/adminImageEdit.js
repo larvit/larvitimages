@@ -43,10 +43,13 @@ exports.run = function(req, res, cb) {
 				}
 
 				if ( ! imgId) {
+					req.session.data.nextCallData = {'global': {'messages': ['New image uploaded with ID ' + image.id]}};
 					res.statusCode = 302;
 					res.setHeader('Location', '/adminImageEdit?id=' + image.id);
 					imgId = image.id;
 				}
+
+				data.global.messages = ['Saved'];
 
 				cb();
 			});
@@ -62,6 +65,7 @@ exports.run = function(req, res, cb) {
 					return;
 				}
 
+				req.session.data.nextCallData = {'global': {'messages': ['Image with ID ' + imgId + ' deleted']}};
 				res.statusCode = 302;
 				res.setHeader('Location', '/adminImages');
 				cb();
