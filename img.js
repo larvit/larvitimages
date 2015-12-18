@@ -3,13 +3,45 @@
 var _            = require('lodash'),
     db           = require('larvitdb'),
     fs           = require('fs'),
+    os           = require('os'),
     log          = require('winston'),
     lwip         = require('lwip'),
+    path         = require('path'),
+    mime         = require('mime-types'),
     async        = require('async'),
+    mkdirp       = require('mkdirp'),
+    rimraf       = require('rimraf'),
     events       = require('events'),
     slugify      = require('larvitslugify'),
     dbChecked    = false,
     eventEmitter = new events.EventEmitter();
+
+exports.cacheDir = os.tmpdir() + '/larvitimages_cache_' + process.pid;
+
+function clearCache(cb) {
+	if (typeof cb !== 'function')
+		cb = function(){};
+
+	rimraf(exports.cacheDir, function(err) {
+		if (err) {
+			log.error('larvitimages: Could not remove cache folder: "' + exports.cacheDir + '"');
+			cb(err);
+			return;
+		}
+
+		mkdirp(exports.cacheDir, function(err) {
+			if (err) {
+				log.error('larvitimages: Could not create cache folder: "' + exports.cacheDir + '"');
+				cb(err);
+				return;
+			}
+
+			log.verbose('larvitimages: Cache folder "' + exports.cacheDir + '" created');
+			cb();
+		});
+	});
+}
+clearCache(); // Clear possible other cache and recreate the cache folder
 
 // Create database tables if they are missing
 function createTablesIfNotExists(cb) {
@@ -29,6 +61,115 @@ function createTablesIfNotExists(cb) {
 createTablesIfNotExists(function(err) {
 	log.error('larvitimages: createTablesIfNotExists() - Database error: ' + err.message);
 });
+
+function getImageBin(options, cb) {
+	var cachedFile;
+
+	cachedFile = exports.cacheDir + '/' + options.slug;
+
+	if (options.width)  cachedFile += '_w' + options.width;
+	if (options.height) cachedFile += '_h' + options.height;
+
+	// Check if cached file exists, and if so, return it
+	function returnFile(cb) {
+		fs.readFile(cachedFile, function(err, fileBuf) {
+			if (err || ! fileBuf) {
+				createFile(function(err) {
+					if (err) {
+						cb(err);
+						return;
+					}
+
+					returnFile(cb);
+				});
+
+				return;
+			}
+
+			cb(null, fileBuf);
+		});
+	}
+
+	function createFile(cb) {
+		getImages({'slugs': options.slug, 'includeBinaryData': true}, function(err, images) {
+			var imgRatio,
+			    imgType,
+			    imgMime;
+
+			if (err) {
+				cb(err);
+				return;
+			}
+
+			if (images.length === 0) {
+				cb(new Error('File not found'));
+				return;
+			}
+
+			imgMime = mime.lookup(options.slug) || 'application/octet-stream';
+			if (imgMime === 'image/png')
+				imgType = 'png';
+			else if (imgMime === 'image/jpeg')
+				imgType = 'jpg';
+			else if (imgMime === 'image/gif')
+				imgType = 'gif';
+			else
+				imgType = false;
+
+			if (options.width || options.height) {
+				lwip.open(images[0].image, imgType, function(err, lwipImage) {
+					var imgWidth,
+					    imgHeight;
+
+					if (err) {
+						serverError();
+						return;
+					}
+
+					imgWidth  = lwipImage.width();
+					imgHeight = lwipImage.height();
+					imgRatio  = imgWidth / imgHeight;
+
+					// Set the missing height or width if only one is given
+					if (options.width && ! options.height)
+						options.height = Math.round(options.width / imgRatio);
+
+					if (options.height && ! options.width)
+						options.width = Math.round(options.height * imgRatio);
+
+					lwipImage.batch()
+						.resize(parseInt(options.width), parseInt(options.height))
+						.toBuffer(imgType, {}, function(err, imgBuf) {
+							if (err) {
+								serverError();
+								return;
+							}
+
+							mkdirp(path.dirname(cachedFile), function(err) {
+								if (err) {
+									cb(err);
+									return;
+								}
+
+								fs.writeFile(cachedFile, imgBuf, cb);
+							});
+						});
+				});
+			} else {
+				mkdirp(path.dirname(cachedFile), function(err) {
+					if (err) {
+						cb(err);
+						return;
+					}
+
+					fs.writeFile(cachedFile, images[0].image, cb);
+				});
+			}
+		});
+	}
+
+	returnFile(cb);
+}
 
 /**
  * Get images
@@ -148,12 +289,16 @@ function getImages(options, cb) {
 	db.query(sql, dbFields, cb);
 };
 
-exports = module.exports = function() {
-	return middleware;
-};
-
 function rmImage(id, cb) {
-	db.query('DELETE FROM images_images WHERE id = ?', [id], cb);
+	var tasks = [];
+
+	tasks.push(function(cb) {
+		db.query('DELETE FROM images_images WHERE id = ?', [id], cb);
+	});
+
+	tasks.push(clearCache);
+
+	async.parallel(tasks, cb);
 }
 
 /**
@@ -291,6 +436,8 @@ function saveImage(data, cb) {
 				db.query(sql, dbFields, cb);
 			});
 		});
+
+		tasks.push(clearCache);
 	}
 
 	// Save the slug
@@ -319,6 +466,8 @@ function saveImage(data, cb) {
 	});
 };
 
-exports.getImages = getImages;
-exports.rmImage   = rmImage;
-exports.saveImage = saveImage;
+exports.clearCache  = clearCache;
+exports.getImageBin = getImageBin;
+exports.getImages   = getImages;
+exports.rmImage     = rmImage;
+exports.saveImage   = saveImage;
