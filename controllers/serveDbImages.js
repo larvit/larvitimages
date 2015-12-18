@@ -13,7 +13,7 @@ exports.run = function(req, res) {
 
 	img.getImageBin({'slug': slug, 'width': request.query.width, 'height': request.query.height}, function(err, imgBuf) {
 		if (err) {
-			log.warn('larvitimages: controllers/serveDbImages.js - err from img.getImageBin(): ' + err.message);
+			log.info('larvitimages: controllers/serveDbImages.js - err from img.getImageBin(): ' + err.message);
 			res.writeHead(500, {'Content-Type': 'text/plain' });
 			res.end('Something is funky with this image, the server got sad. :(');
 			return;
