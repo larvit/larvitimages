@@ -122,7 +122,7 @@ function getImageBin(options, cb) {
 					    imgHeight;
 
 					if (err) {
-						serverError();
+						cb(err);
 						return;
 					}
 
@@ -141,12 +141,14 @@ function getImageBin(options, cb) {
 						.resize(parseInt(options.width), parseInt(options.height))
 						.toBuffer(imgType, {}, function(err, imgBuf) {
 							if (err) {
-								serverError();
+								log.warn('larvitimages: getImageBin() - createFile() - Error from lwip: ' + err.message);
+								cb(err);
 								return;
 							}
 
 							mkdirp(path.dirname(cachedFile), function(err) {
 								if (err) {
+									log.warn('larvitimages: getImageBin() - createFile() - Error from lwip: ' + err.message);
 									cb(err);
 									return;
 								}
@@ -158,6 +160,7 @@ function getImageBin(options, cb) {
 			} else {
 				mkdirp(path.dirname(cachedFile), function(err) {
 					if (err) {
+						log.warn('larvitimages: getImageBin() - createFile() - Could not create folder: ' + err.message);
 						cb(err);
 						return;
 					}
