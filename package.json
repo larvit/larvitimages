@@ -6,14 +6,14 @@
 	},
 	"private": false,
 	"dependencies": {
-		"larvitdb": "~0.4",
-		"larvitslugify": "~0.10",
-		"lodash": "~4.0",
-		"lwip": "~0.0.8",
-		"mime-types": "~2.1",
-		"mkdirp": "~0.5",
-		"rimraf": "~2.4",
-		"winston": "~2.1"
+		"larvitdb": "^0.4",
+		"larvitslugify": "^0.10",
+		"lodash": "^4",
+		"lwip": "^0.0.8",
+		"mime-types": "^2",
+		"mkdirp": "^0.5",
+		"rimraf": "^2",
+		"winston": "^2"
 	},
 	"description": "Image resizing, admin page and database for images meta data.",
 	"devDependencies": {
@@ -35,7 +35,7 @@
 		"url": "https://github.com/larvit/larvitimages",
 		"type": "git"
 	},
-	"version": "0.2.3",
+	"version": "0.2.4",
 	"readmeFilename": "README.md",
 	"bugs": {
 		"url": "https://github.com/larvit/larvitimages/issues"
