@@ -1,19 +1,17 @@
 'use strict';
 
-var mime = require('mime-types'),
-    log  = require('winston'),
-    img  = require('larvitimages'),
-    url  = require('url'),
-    _    = require('lodash');
+const mime = require('mime-types'),
+      path = require('path'),
+      log  = require('winston'),
+      img  = require('larvitimages');
 
 exports.run = function(req, res) {
-	var request = url.parse(req.url, true),
-	    slug    = _.trim(request.pathname.substring(17), '/'), // /uploaded/images/
-	    imgMime;
+	const slug = path.parse(req.urlParsed.pathname).base;
 
-	img.getImageBin({'slug': slug, 'width': request.query.width, 'height': request.query.height}, function(err, imgBuf) {
+	let imgMime;
+	img.getImageBin({'slug': slug, 'width': req.urlParsed.query.width, 'height': req.urlParsed.query.height}, function(err, imgBuf) {
 		if (err) {
-			log.info('larvitimages: controllers/serveDbImages.js - err from img.getImageBin(): ' + err.message);
+			log.info('larvitimages: controllers/serveDbImages.js - slug: "' + slug + '" err from img.getImageBin(): ' + err.message);
 			res.writeHead(500, {'Content-Type': 'text/plain' });
 			res.end('Something is funky with this image, the server got sad. :(');
 			return;

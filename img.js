@@ -1,19 +1,20 @@
 'use strict';
 
-var _            = require('lodash'),
-    db           = require('larvitdb'),
-    fs           = require('fs'),
-    os           = require('os'),
-    log          = require('winston'),
-    lwip         = require('lwip'),
-    path         = require('path'),
-    mime         = require('mime-types'),
-    async        = require('async'),
-    mkdirp       = require('mkdirp'),
-    rimraf       = require('rimraf'),
-    events       = require('events'),
-    slugify      = require('larvitslugify'),
-    dbChecked    = false,
+const _            = require('lodash'),
+      db           = require('larvitdb'),
+      fs           = require('fs'),
+      os           = require('os'),
+      log          = require('winston'),
+      lwip         = require('lwip'),
+      path         = require('path'),
+      mime         = require('mime-types'),
+      async        = require('async'),
+      mkdirp       = require('mkdirp'),
+      rimraf       = require('rimraf'),
+      events       = require('events'),
+      slugify      = require('larvitslugify');
+
+let dbChecked    = false,
     eventEmitter = new events.EventEmitter();
 
 exports.cacheDir = os.tmpdir() + '/larvitimages_cache_' + process.pid;
