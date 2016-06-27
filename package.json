@@ -9,8 +9,8 @@
     "larvitdb": "^1.1.0",
     "larvitdbmigration": "^1.0.2",
     "larvitslugify": "^0.10.10",
-    "lodash": "^4.12.0",
-    "lwip": "0.0.8",
+    "lodash": "^4.13.1",
+    "lwip": "0.0.9",
     "mime-types": "^2.1.11",
     "mkdirp": "^0.5.1",
     "rimraf": "^2.5.2",
@@ -37,7 +37,7 @@
     "url": "https://github.com/larvit/larvitimages",
     "type": "git"
   },
-  "version": "0.3.0",
+  "version": "0.3.1",
   "readmeFilename": "README.md",
   "bugs": {
     "url": "https://github.com/larvit/larvitimages/issues"
