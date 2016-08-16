@@ -1,14 +1,14 @@
 'use strict';
 
-const mime = require('mime-types'),
-      path = require('path'),
-      log  = require('winston'),
-      img  = require('larvitimages');
+const	mime	= require('mime-types'),
+	path	= require('path'),
+	log	= require('winston'),
+	img	= require('larvitimages');
 
 exports.run = function(req, res) {
-	const slug = path.parse(req.urlParsed.pathname).base;
+	const	slug	= path.parse(req.urlParsed.pathname).base;
 
-	let imgMime;
+	let	imgMime;
 	img.getImageBin({'slug': slug, 'width': req.urlParsed.query.width, 'height': req.urlParsed.query.height}, function(err, imgBuf) {
 		if (err) {
 			log.info('larvitimages: controllers/serveDbImages.js - slug: "' + slug + '" err from img.getImageBin(): ' + err.message);

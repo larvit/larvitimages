@@ -1,13 +1,14 @@
 'use strict';
 
-var async = require('async'),
-    img   = require('larvitimages'),
-    log   = require('winston');
+const	async	= require('async'),
+	img	= require('larvitimages'),
+	log	= require('winston');
 
 exports.run = function(req, res, cb) {
-	var data  = {'global': res.globalData},
-	    imgId = res.globalData.urlParsed.query.id,
-	    tasks = [];
+	const	tasks	= [],
+		data	= {'global': res.globalData};
+
+	let	imgId	= res.globalData.urlParsed.query.id;
 
 	// Make sure the user have the correct rights
 	// This is set in larvitadmingui controllerGlobal
@@ -19,7 +20,7 @@ exports.run = function(req, res, cb) {
 	// Save a POSTed form
 	if (res.globalData.formFields.save !== undefined) {
 		tasks.push(function(cb) {
-			var saveObj = {};
+			const	saveObj	= {};
 
 			if (imgId !== undefined)
 				saveObj.id = imgId;
@@ -60,10 +61,7 @@ exports.run = function(req, res, cb) {
 	if (res.globalData.formFields.delete !== undefined && imgId !== undefined) {
 		tasks.push(function(cb) {
 			img.rmImage(imgId, function(err) {
-				if (err) {
-					cb(err);
-					return;
-				}
+				if (err) { cb(err); return; }
 
 				req.session.data.nextCallData = {'global': {'messages': ['Image with ID ' + imgId + ' deleted']}};
 				res.statusCode = 302;
@@ -84,8 +82,9 @@ exports.run = function(req, res, cb) {
 	}
 
 	async.series(tasks, function(err) {
-		if (err)
+		if (err) {
 			data.global.errors = [err.message];
+		}
 
 		cb(null, req, res, data);
 	});

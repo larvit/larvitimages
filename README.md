@@ -6,8 +6,8 @@ Important! To be able to load the images in the browser, add this to larvitbase 
 
 ```javascript
 serverConf.customRoutes = [{
-	'regex':          '^/uploaded/images/',
-	'controllerName': 'serveDbImages'
+	'regex':	'^/uploaded/images/',
+	'controllerName':	'serveDbImages'
 }];
 ```
 
