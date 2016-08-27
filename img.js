@@ -52,7 +52,7 @@ function clearCache(cb) {
 		if (exists) {
 			rimraf(exports.cacheDir, function(err) {
 				if (err) {
-					log.error('larvitimages: clearCache() - Could not remove cache folder: "' + exports.cacheDir + '"');
+					log.error('larvitimages: clearCache() - Could not remove cache folder: "' + exports.cacheDir + '" err: ' + err.message);
 				}
 
 				cb(err);
@@ -66,7 +66,7 @@ function clearCache(cb) {
 	tasks.push(function(cb) {
 		mkdirp(exports.cacheDir, function(err) {
 			if (err) {
-				log.error('larvitimages: clearCache() - Could not create cache folder: "' + exports.cacheDir + '"');
+				log.error('larvitimages: clearCache() - Could not create cache folder: "' + exports.cacheDir + '" err: ' + err.message);
 				cb(err);
 				return;
 			}
