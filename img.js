@@ -50,13 +50,28 @@ function clearCache(cb) {
 	// Remove old folder
 	tasks.push(function(cb) {
 		if (exists) {
-			rimraf(exports.cacheDir, function(err) {
-				if (err) {
-					log.error('larvitimages: clearCache() - Could not remove cache folder: "' + exports.cacheDir + '" err: ' + err.message);
-				}
+			let retries = 0;
 
-				cb(err);
-			});
+			function removeFolder(cb) {
+				rimraf(exports.cacheDir, function(err) {
+					if (err && retries > 100) {
+						log.error('larvitimages: clearCache() - Could not remove cache folder: "' + exports.cacheDir + '" err: ' + err.message);
+						cb(err);
+						return;
+					} else if (err) {
+						retries ++;
+
+						setTimeout(function() {
+							removeFolder(cb);
+						}, retries * 10);
+						return;
+					}
+
+					cb();
+				});
+			}
+
+			removeFolder(cb);
 		} else {
 			cb();
 		}

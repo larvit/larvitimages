@@ -19,13 +19,8 @@
   "description": "Image resizing, admin page and database for images meta data.",
   "devDependencies": {
     "eslint": "^3.3.1",
-    "mocha": "^3.0.2",
-    "pre-git": "^3.8.4"
+    "mocha": "^3.0.2"
   },
-  "pre-commit": [
-    "npm test",
-    "eslint ./"
-  ],
   "keywords": [
     "img",
     "images",
@@ -37,7 +32,7 @@
     "url": "https://github.com/larvit/larvitimages",
     "type": "git"
   },
-  "version": "0.3.3",
+  "version": "0.3.4",
   "readmeFilename": "README.md",
   "bugs": {
     "url": "https://github.com/larvit/larvitimages/issues"
@@ -52,14 +47,5 @@
       "name": "lilleman",
       "email": "lilleman@larvit.se"
     }
-  ],
-  "config": {
-    "pre-git": {
-      "commit-msg": [],
-      "pre-commit": [],
-      "pre-push": [],
-      "post-commit": [],
-      "post-merge": []
-    }
-  }
+  ]
 }
