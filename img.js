@@ -187,7 +187,7 @@ function getImageBin(options, cb) {
 							}
 
 							mkdirp(path.dirname(cachedFile), function(err) {
-								if (err) {
+								if (err && err.message.substring(0, 6) !== 'EEXIST') {
 									log.warn('larvitimages: getImageBin() - createFile() - Error from lwip: ' + err.message);
 									cb(err);
 									return;
@@ -199,7 +199,7 @@ function getImageBin(options, cb) {
 				});
 			} else {
 				mkdirp(path.dirname(cachedFile), function(err) {
-					if (err) {
+					if (err && err.message.substring(0, 6) !== 'EEXIST') {
 						log.warn('larvitimages: getImageBin() - createFile() - Could not create folder: ' + err.message);
 						cb(err);
 						return;
