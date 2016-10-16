@@ -6,7 +6,7 @@
   },
   "private": false,
   "dependencies": {
-    "larvitdb": "^1.1.2",
+    "larvitdb": "^1.2.4",
     "larvitdbmigration": "^1.0.2",
     "larvitslugify": "^0.10.10",
     "lodash": "^4.15.0",
@@ -32,7 +32,7 @@
     "url": "https://github.com/larvit/larvitimages",
     "type": "git"
   },
-  "version": "0.3.5",
+  "version": "0.3.6",
   "readmeFilename": "README.md",
   "bugs": {
     "url": "https://github.com/larvit/larvitimages/issues"

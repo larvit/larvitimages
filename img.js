@@ -327,7 +327,11 @@ function getImages(options, cb) {
 		sql += ' OFFSET ' + parseInt(options.offset);
 	}
 
-	db.query(sql, dbFields, cb);
+	if (options.includeBinaryData) {
+		db.query(sql, dbFields, {'ignoreLongQueryWarning': true}, cb);
+	} else {
+		db.query(sql, dbFields, cb);
+	}
 };
 
 function rmImage(id, cb) {
