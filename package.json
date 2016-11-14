@@ -13,7 +13,6 @@
     "lwip": "0.0.9",
     "mime-types": "^2.1.11",
     "mkdirp": "^0.5.1",
-    "rimraf": "^2.5.4",
     "winston": "^2.2.0"
   },
   "description": "Image resizing, admin page and database for images meta data.",
@@ -32,7 +31,7 @@
     "url": "https://github.com/larvit/larvitimages",
     "type": "git"
   },
-  "version": "0.3.6",
+  "version": "0.3.7",
   "readmeFilename": "README.md",
   "bugs": {
     "url": "https://github.com/larvit/larvitimages/issues"

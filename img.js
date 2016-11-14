@@ -2,7 +2,6 @@
 
 const	slugify	= require('larvitslugify'),
 	events	= require('events'),
-	rimraf	= require('rimraf'),
 	mkdirp	= require('mkdirp'),
 	async	= require('async'),
 	mime	= require('mime-types'),
@@ -19,13 +18,22 @@ let	eventEmitter	= new events.EventEmitter(),
 
 exports.cacheDir = os.tmpdir() + '/larvitimages_cache_' + process.pid;
 
-function clearCache(cb) {
+function clearCache(slug, cb) {
 	const	tasks	= [];
 
 	let	exists;
 
+	if (typeof slug === 'function') {
+		cb	= slug;
+		slug	= undefined;
+	}
+
+	if (slug === undefined) {
+		slug	= '';
+	}
+
 	if (typeof cb !== 'function') {
-		cb = function(){};
+		cb	= function(){};
 	}
 
 	// Check if the folder exists at all
@@ -47,53 +55,64 @@ function clearCache(cb) {
 		});
 	});
 
-	// Remove old folder
+	// Remove files
 	tasks.push(function(cb) {
-		if (exists) {
-			let retries = 0;
+		const	tasks	= [];
 
-			function removeFolder(cb) {
-				rimraf(exports.cacheDir, function(err) {
-					if (err && retries > 100) {
-						log.error('larvitimages: clearCache() - Could not remove cache folder: "' + exports.cacheDir + '" err: ' + err.message);
-						cb(err);
-						return;
-					} else if (err) {
-						retries ++;
+		if (exists === false) {
+			cb();
+			return;
+		}
 
-						setTimeout(function() {
-							removeFolder(cb);
-						}, retries * 10);
-						return;
-					}
+		fs.readdir(exports.cacheDir, function(err, files) {
+			if (err) { cb(err); return; }
 
-					cb();
-				});
+			for (let i = 0; files[i] !== undefined; i ++) {
+				const	fileName	= files[i];
+
+				if (slug === '' || fileName.substring(0, slug.length) === slug) {
+					tasks.push(function(cb) {
+						fs.unlink(exports.cacheDir + '/' + fileName, function(err) {
+							if (err) {
+								log.warn('larvitimages: clearCache() - Could not remove file: "' + fileName + '", err: ' + err.message);
+							}
+
+							cb(err);
+						});
+					});
+				}
 			}
 
-			removeFolder(cb);
-		} else {
-			cb();
-		}
+			async.parallel(tasks, cb);
+		});
 	});
 
-	// Create the new one
+	// Create the folder if it did not exist
 	tasks.push(function(cb) {
-		mkdirp(exports.cacheDir, function(err) {
-			if (err) {
-				log.error('larvitimages: clearCache() - Could not create cache folder: "' + exports.cacheDir + '" err: ' + err.message);
-				cb(err);
-				return;
-			}
-
-			log.verbose('larvitimages: clearCache() - Cache folder "' + exports.cacheDir + '" created');
+		if (exist) {
 			cb();
-		});
+			return;
+		}
+
+		createCacheFolder(cb);
 	});
 
 	async.series(tasks, cb);
 }
-clearCache(); // Clear possible other cache and recreate the cache folder
+
+function createCacheFolder(cb) {
+	mkdirp(exports.cacheDir, function(err) {
+		if (err) {
+			log.error('larvitimages: createCacheFolder() - Could not create cache folder: "' + exports.cacheDir + '" err: ' + err.message);
+		} else {
+			log.verbose('larvitimages: createCacheFolder() - Cache folder "' + exports.cacheDir + '" created');
+		}
+
+		cb(err);
+	});
+}
+
+createCacheFolder();
 
 // Create database tables if they are missing
 function createTablesIfNotExists(cb) {
@@ -337,11 +356,36 @@ function getImages(options, cb) {
 function rmImage(id, cb) {
 	const	tasks	= [];
 
+	let	slug;
+
+	// Get slug
+	tasks.push(function(cb) {
+		db.query('SELECT slug FROM images_images WHERE id = ?', [id], function(err, rows) {
+			if (err) {
+				cb(err);
+				return;
+			}
+
+			if (rows.length) {
+				slug	= rows[0].slug;
+			}
+
+			cb();
+		});
+	});
+
 	tasks.push(function(cb) {
 		db.query('DELETE FROM images_images WHERE id = ?', [id], cb);
 	});
 
-	tasks.push(clearCache);
+	tasks.push(function(cb) {
+		if ( ! slug) {
+			cb();
+			return;
+		}
+
+		clearCache(slug, cb);
+	});
 
 	async.parallel(tasks, cb);
 }
@@ -479,8 +523,6 @@ function saveImage(data, cb) {
 				db.query(sql, dbFields, cb);
 			});
 		});
-
-		tasks.push(clearCache);
 	}
 
 	// Save the slug
@@ -489,6 +531,25 @@ function saveImage(data, cb) {
 			db.query('UPDATE images_images SET slug = ? WHERE id = ?', [data.slug, data.id], cb);
 		});
 	}
+
+	// Clear cache for this slug
+	tasks.push(function(cb) {
+		db.query('SELECT slug FROM images_images WHERE id = ?', [data.id], function(err, rows) {
+			if (err) {
+				cb(err);
+				return;
+			}
+
+			if (rows.length === 0) {
+				const	err	= new Error('Could not find database row of newly saved image id: "' + data.id + '"');
+				log.error('larvitimages: saveImage() - ' + err.message);
+				cb(err);
+				return;
+			}
+
+			clearCache(rows[0].slug, cb);
+		});
+	});
 
 	async.series(tasks, function(err) {
 		// Something went wrong. Clean up and callback the error
