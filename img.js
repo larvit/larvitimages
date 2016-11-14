@@ -101,6 +101,10 @@ function clearCache(slug, cb) {
 }
 
 function createCacheFolder(cb) {
+	if (typeof cb !== 'function') {
+		cb = function() {};
+	}
+
 	mkdirp(exports.cacheDir, function(err) {
 		if (err) {
 			log.error('larvitimages: createCacheFolder() - Could not create cache folder: "' + exports.cacheDir + '" err: ' + err.message);
