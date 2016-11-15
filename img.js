@@ -89,7 +89,7 @@ function clearCache(slug, cb) {
 
 	// Create the folder if it did not exist
 	tasks.push(function(cb) {
-		if (exist) {
+		if (exists) {
 			cb();
 			return;
 		}
