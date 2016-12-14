@@ -4,6 +4,7 @@ const	slugify	= require('larvitslugify'),
 	events	= require('events'),
 	mkdirp	= require('mkdirp'),
 	async	= require('async'),
+	utils	= require('larvitutils'),
 	mime	= require('mime-types'),
 	path	= require('path'),
 	lwip	= require('lwip'),
@@ -198,6 +199,13 @@ function getImageBin(options, cb) {
 
 					if (options.height && ! options.width) {
 						options.width = Math.round(options.height * imgRatio);
+					}
+
+					if ( ! utils.isInt(options.height) || ! utils.isInt(options.width)) {
+						const err = new Error('Options.height or options.width is not an integer. Options: ' + JSON.stringify(options));
+						log.warn('larvitimages: getImageBin() - createFile() - ' + err.message);
+						cb(err);
+						return;
 					}
 
 					lwipImage.batch()
