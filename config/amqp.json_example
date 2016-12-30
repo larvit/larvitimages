@@ -1,0 +1,3 @@
+{
+	"default": "amqp://test:test@172.18.0.10/"
+}
