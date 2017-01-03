@@ -1,6 +1,8 @@
 'use strict';
 
-const	slugify	= require('larvitslugify'),
+const	imageType	= require('image-type'),
+	uuidLib	= require('node-uuid'),
+	slugify	= require('larvitslugify'),
 	events	= require('events'),
 	mkdirp	= require('mkdirp'),
 	async	= require('async'),
@@ -121,11 +123,10 @@ createCacheFolder();
 
 // Create database tables if they are missing
 function createTablesIfNotExists(cb) {
-	const	sql	= 'CREATE TABLE IF NOT EXISTS `images_images` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT, `slug` varchar(255) CHARACTER SET ascii NOT NULL, `image` longblob NOT NULL, PRIMARY KEY (`id`), UNIQUE KEY `slug` (`slug`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
+	const	sql	= 'CREATE TABLE IF NOT EXISTS `images_images` (`uuid` binary(16) NOT NULL, `slug` varchar(255) CHARACTER SET ascii NOT NULL, `image` longblob NOT NULL, PRIMARY KEY (`uuid`), UNIQUE KEY `slug` (`slug`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
 
 	db.query(sql, function(err) {
 		if (err) { cb(err); return; }
-
 		dbChecked = true;
 		eventEmitter.emit('checked');
 	});
@@ -429,25 +430,26 @@ function saveImage(data, cb) {
 	}
 
 	// If id is missing, we MUST have a file
-	if (data.id === undefined && data.uploadedFile === undefined) {
+	if (data.uuid === undefined && data.file === undefined) {
 		log.info('larvitimages: saveImage() - Upload file is missing, but required since no ID is supplied.');
 		cb(new Error('Image file is required'));
 		return;
 	}
 
+
 	// If we have an image file, make sure the format is correct
-	if (data.uploadedFile !== undefined) {
+	if (data.file !== undefined) {
 		tasks.push(function(cb) {
 
 			// As a first step, check the mime type, since this is already given to us
-			if (data.uploadedFile.type !== 'image/png' && data.uploadedFile.type !== 'image/jpeg' && data.uploadedFile.type !== 'image/gif') {
+			if (imageType(data.file.bin).mime !== 'image/png' && imageType(data.file.bin).mime !== 'image/jpeg' && imageType(data.file.bin).mime !== 'image/gif') {
 				log.info('larvitimages: saveImage() - Invalid mime type "' + data.uploadedFile.type + '" for uploaded file.');
 				cb(new Error('Invalid file format, must be of image type PNG, JPEG or GIF'));
 				return;
 			}
 
 			// Then actually checks so the file loads in our image lib
-			lwip.open(data.uploadedFile.path, function(err) {
+			lwip.open(data.file.bin, imageType(data.file.bin).ext, function(err) {
 				if (err) {
 					log.warn('larvitimages: saveImage() - Unable to open uploaded file: ' + err.message);
 					cb(err);
@@ -465,9 +467,9 @@ function saveImage(data, cb) {
 
 		let sql;
 
-		// If no slug or id was supplied use the filename as base for the slug
-		if ( ! data.id && ! data.slug) {
-			data.slug = data.uploadedFile.name;
+		// If no slug or uuid was supplied use the filename as base for the slug
+		if ( ! data.uuid && ! data.slug) {
+			data.slug = data.file.name;
 		}
 
 		// If no slug is set by here, it means an id is supplied and the slug
@@ -481,11 +483,11 @@ function saveImage(data, cb) {
 		}
 
 		// Make sure it is not occupied by another image
-		sql = 'SELECT id FROM images_images WHERE slug = ?';
+		sql = 'SELECT uuid FROM images_images WHERE slug = ?';
 		dbFields.push(data.slug);
-		if (data.id !== undefined) {
-			sql += ' AND id != ?';
-			dbFields.push(data.id);
+		if (data.uuid !== undefined) {
+			sql += ' AND uuid != ?';
+			dbFields.push(new Buffer(uuidLib.parse(data.uuid)));
 		}
 
 		db.query(sql, dbFields, function(err, rows) {
@@ -501,59 +503,51 @@ function saveImage(data, cb) {
 	});
 
 	// Create a new image if id is not set
-	if (data.id === undefined) {
+	if (data.uuid === undefined) {
 		tasks.push(function(cb) {
-			const	sql	= 'INSERT INTO images_images (slug) VALUES(?);',
-				dbFields	= [data.slug];
+			data.uuid = uuidLib.v4();
 
-			db.query(sql, dbFields, function(err, result) {
+			const	sql	= 'INSERT INTO images_images (uuid, slug) VALUES(?, ?);',
+				dbFields	= [new Buffer(uuidLib.parse(data.uuid)), data.slug];
+
+			db.query(sql, dbFields, function(err) {
 				if (err) { cb(err); return; }
-
-				log.debug('larvitimages: saveImage() - New image created with id: "' + result.insertId + '"');
-				data.id = result.insertId;
+				log.debug('larvitimages: saveImage() - New image created with id: "' + data.uuid + '"');
 				cb();
 			});
 		});
 	}
 
 	// Save file data
-	if (data.uploadedFile) {
+	if (data.file) {
 		tasks.push(function(cb) {
-			const	sql	= 'UPDATE images_images SET image = ? WHERE id = ?;',
+			const	sql	= 'UPDATE images_images SET image = ? WHERE uuid = ?;',
 				dbFields	= [];
 
-			fs.readFile(data.uploadedFile.path, function(err, fileData) {
-				if (err) {
-					log.error('larvitimages: saveImage() - Could not read upladed image data from ' + data.uploadedFile.path);
-					cb(err);
-					return;
-				}
-
-				dbFields.push(fileData);
-				dbFields.push(data.id);
+				dbFields.push(data.file.bin);
+				dbFields.push(data.uuid);
 
 				db.query(sql, dbFields, cb);
-			});
 		});
 	}
 
 	// Save the slug
 	if (data.slug) {
 		tasks.push(function(cb) {
-			db.query('UPDATE images_images SET slug = ? WHERE id = ?', [data.slug, data.id], cb);
+			db.query('UPDATE images_images SET slug = ? WHERE uuid = ?', [data.slug, new Buffer(uuidLib.parse(data.uuid))], cb);
 		});
 	}
 
 	// Clear cache for this slug
 	tasks.push(function(cb) {
-		db.query('SELECT slug FROM images_images WHERE id = ?', [data.id], function(err, rows) {
+		db.query('SELECT slug FROM images_images WHERE uuid = ?', [new Buffer(uuidLib.parse(data.uuid))], function(err, rows) {
 			if (err) {
 				cb(err);
 				return;
 			}
 
 			if (rows.length === 0) {
-				const	err	= new Error('Could not find database row of newly saved image id: "' + data.id + '"');
+				const	err	= new Error('Could not find database row of newly saved image uuid: "' + data.uuid + '"');
 				log.error('larvitimages: saveImage() - ' + err.message);
 				cb(err);
 				return;
@@ -568,11 +562,12 @@ function saveImage(data, cb) {
 		if (err) { cb(err); return; }
 
 		// Re-read this entry from the database to be sure to get the right deal!
-		getImages({'ids': data.id}, function(err, images) {
+		getImages({'ids': data.uuid}, function(err, images) {
 			if (err) { cb(err); return; }
 
 			cb(null, images[0]);
 		});
+		cb();
 	});
 };
 

@@ -74,7 +74,7 @@ before(function(done) {
 
 describe('Images', function() {
 
-	it('It shoould save an image in database', function(done) {
+	it('should save an image in database', function(done) {
 		const	tasks	= [];
 
 		let testImage;
@@ -92,8 +92,10 @@ describe('Images', function() {
 		// Save test image
 		tasks.push(function(cb) {
 			let data = {
-				'slug': 'testImage',
-				'uploadedFile': testImage
+				'file': {
+					'bin': testImage,
+					'name': 'testimage.jpg'
+				}
 			};
 
 			img.saveImage(data, function(err, imaeege) {
@@ -105,8 +107,6 @@ describe('Images', function() {
 
 
 		// Get saved image
-
-
 		async.series(tasks, function(err) {
 			if (err) throw err;
 			done();
