@@ -6,6 +6,7 @@
   },
   "private": false,
   "dependencies": {
+    "buffer-equal": "^1.0.0",
     "image-type": "^2.1.0",
     "larvitdb": "^1.2.4",
     "larvitdbmigration": "^1.0.2",

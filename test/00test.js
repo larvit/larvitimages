@@ -1,7 +1,9 @@
 'use strict';
 
-const	//assert	= require('assert'),
+const	bufferEqual	= require('buffer-equal'),
+	assert	= require('assert'),
 	async	= require('async'),
+	lwip	= require('lwip'),
 	log	= require('winston'),
 	db	= require('larvitdb'),
 	fs	= require('fs');
@@ -77,51 +79,53 @@ describe('Images', function() {
 	it('should save an image in database', function(done) {
 		const	tasks	= [];
 
-		let testImage;
-//				imageId;
+		let saveObj = {
+					'file': {
+						'name': 'testimage.jpg'
+					}
+				};
 
 		// Load test image
 		tasks.push(function(cb) {
-			fs.readFile(__dirname + '/../testimage.jpg', function read(err, data) {
+			lwip.create(500, 500, 'red', function(err, image){
 				if (err) throw err;
-				testImage = data;
+				image.toBuffer('jpg', {'quality': 100}, function(err, image) {
+					saveObj.file.bin = image;
+				});
 				cb();
 			});
 		});
 
 		// Save test image
 		tasks.push(function(cb) {
-			let data = {
-				'file': {
-					'bin': testImage,
-					'name': 'testimage.jpg'
-				}
-			};
-
-			img.saveImage(data, function(err, imaeege) {
+			img.saveImage(saveObj, function(err, image) {
 				if (err) throw err;
-				console.log(imaeege);
+				saveObj.uuid = image.uuid;
 				cb();
 			});
 		});
 
-
 		// Get saved image
+		tasks.push(function(cb) {
+			const options = {
+				'uuids': [saveObj.uuid],
+				'includeBinaryData':	true
+			};
+			img.getImages(options, function(err, image) {
+				if (err) throw err;
+
+				bufferEqual(image[0].image, saveObj.file.bin);
+				assert.deepEqual(saveObj.file.name, image[0].slug);
+
+				cb();
+			});
+		});
+
 		async.series(tasks, function(err) {
 			if (err) throw err;
 			done();
 		});
-
-
-//		assert.deepEqual(toString.call(order),	'[object Object]');
-//		assert.deepEqual(uuidValidate(order.uuid, 4),	true);
-//		assert.deepEqual(toString.call(order.created),	'[object Date]');
-//		assert.deepEqual(order.rows instanceof Array,	true);
-//		assert.deepEqual(order.rows.length,	0);
-
-
 	});
-
 });
 
 

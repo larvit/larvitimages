@@ -251,7 +251,7 @@ function getImageBin(options, cb) {
  *
  * @param obj options -	{ // All options are optional!
  *		'slugs':	['blu', 'bla'],	// With or without file ending
- *		'ids':	[32,4],	//
+ *		'uuids':	[d893b68d-bb64-40ac-bec7-14e640a235a6,d893b68d-bb64-40ac-bec7-14e640a235a6],	//
  *		'limit':	10,	// Defaults to 10, explicitly give false for no limit
  *		'offset':	20,	//
  *		'includeBinaryData':	true	// Defaults to false
@@ -272,8 +272,8 @@ function getImages(options, cb) {
 
 	// Make sure options that should be arrays actually are arrays
 	// This will simplify our lives in the SQL builder below
-	if (options.ids !== undefined && ! (options.ids instanceof Array)) {
-		options.ids = [options.ids];
+	if (options.uuids !== undefined && ! (options.uuids instanceof Array)) {
+		options.uuids = [options.uids];
 	}
 
 	if (options.slugs !== undefined && ! (options.slugs instanceof Array)) {
@@ -289,8 +289,8 @@ function getImages(options, cb) {
 
 	// Make sure there is an invalid ID in the id list if it is empty
 	// Since the most logical thing to do is replying with an empty set
-	if (options.ids instanceof Array && options.ids.length === 0) {
-		options.ids.push(- 1);
+	if (options.uuids instanceof Array && options.uuids.length === 0) {
+		options.uuids.push(- 1);
 	}
 
 	if (options.limit === undefined) {
@@ -308,7 +308,7 @@ function getImages(options, cb) {
 		return;
 	}
 
-	sql	= 'SELECT id, slug';
+	sql	= 'SELECT uuid, slug';
 
 	if (options.includeBinaryData) {
 		sql += ', image';
@@ -338,12 +338,12 @@ function getImages(options, cb) {
 	}
 
 	// Only get posts with given ids
-	if (options.ids !== undefined) {
-		sql += '	AND id IN (';
+	if (options.uuids !== undefined) {
+		sql += '	AND uuid IN (';
 
-		for (let i = 0; options.ids[i] !== undefined; i ++) {
+		for (let i = 0; options.uuids[i] !== undefined; i ++) {
 			sql += '?,';
-			dbFields.push(options.ids[i]);
+			dbFields.push(options.uuids[i]);
 		}
 
 		sql = sql.substring(0, sql.length - 1) + ')\n';
@@ -360,20 +360,24 @@ function getImages(options, cb) {
 	}
 
 	if (options.includeBinaryData) {
-		db.query(sql, dbFields, {'ignoreLongQueryWarning': true}, cb);
+		db.query(sql, dbFields, {'ignoreLongQueryWarning': true}, function(err, result) {
+			cb(err, result);
+		});
 	} else {
-		db.query(sql, dbFields, cb);
+		db.query(sql, dbFields, function(err, result) {
+			cb(err, result);
+		});
 	}
 };
 
-function rmImage(id, cb) {
+function rmImage(uuid, cb) {
 	const	tasks	= [];
 
 	let	slug;
 
 	// Get slug
 	tasks.push(function(cb) {
-		db.query('SELECT slug FROM images_images WHERE id = ?', [id], function(err, rows) {
+		db.query('SELECT slug FROM images_images WHERE uuid = ?', [uuid], function(err, rows) {
 			if (err) {
 				cb(err);
 				return;
@@ -388,7 +392,7 @@ function rmImage(id, cb) {
 	});
 
 	tasks.push(function(cb) {
-		db.query('DELETE FROM images_images WHERE id = ?', [id], cb);
+		db.query('DELETE FROM images_images WHERE uuid = ?', [uuid], cb);
 	});
 
 	tasks.push(function(cb) {
@@ -407,7 +411,7 @@ function rmImage(id, cb) {
  * Save an image
  *
  * @param obj data -	{
- *		'id':	1323,
+ *		'uuid':	d8d2bed2-4da1-4650-968c-7acc81b62c92,
  *		'slug':	'barfoo'
  *		'uploadedFile':	File obj from formidable, see https://github.com/felixge/node-formidable for more info
  *	}
@@ -512,7 +516,7 @@ function saveImage(data, cb) {
 
 			db.query(sql, dbFields, function(err) {
 				if (err) { cb(err); return; }
-				log.debug('larvitimages: saveImage() - New image created with id: "' + data.uuid + '"');
+				log.debug('larvitimages: saveImage() - New image created with uuid: "' + data.uuid + '"');
 				cb();
 			});
 		});
@@ -567,7 +571,6 @@ function saveImage(data, cb) {
 
 			cb(null, images[0]);
 		});
-		cb();
 	});
 };
 
