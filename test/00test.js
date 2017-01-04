@@ -87,12 +87,12 @@ describe('Images', function() {
 
 		// Load test image
 		tasks.push(function(cb) {
-			lwip.create(500, 500, 'red', function(err, image){
+			lwip.create(1000, 1000, 'red', function(err, image){
 				if (err) throw err;
 				image.toBuffer('jpg', {'quality': 100}, function(err, image) {
 					saveObj.file.bin = image;
+					cb();
 				});
-				cb();
 			});
 		});
 

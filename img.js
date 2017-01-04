@@ -1,6 +1,7 @@
 'use strict';
 
-const	imageType	= require('image-type'),
+const	uuidValidate	= require('uuid-validate'),
+	imageType	= require('image-type'),
 	uuidLib	= require('node-uuid'),
 	slugify	= require('larvitslugify'),
 	events	= require('events'),
@@ -17,9 +18,40 @@ const	imageType	= require('image-type'),
 	_	= require('lodash');
 
 let	eventEmitter	= new events.EventEmitter(),
-	dbChecked	= false;
+	dbChecked	= false,
+	config	= require(__dirname + '/config/images.json');
 
 exports.cacheDir = os.tmpdir() + '/larvitimages_cache_' + process.pid;
+
+
+/**
+ * Get path to image
+ *
+ * @param str	- 'd893b68d-bb64-40ac-bec7-14e640a235a6,d893b68d-bb64-40ac-bec7-14e640a235a6'
+ *
+ */
+function getPathToImage(uuid) {
+	return config.storage + uuid.substr(0, 4).split('').join('/') + '/';
+}
+
+/**
+ * Get path to image
+ *
+ * @param str	- 'd893b68d-bb64-40ac-bec7-14e640a235a6,d893b68d-bb64-40ac-bec7-14e640a235a6'
+ * @param func cb	- callback(err, path)
+ *
+ */
+function createImageDirectory(uuid, cb) {
+	let	path	= config.storage + uuid.substr(0, 4).split('').join('/') + '/';
+
+	if ( ! uuidValidate(uuid, 4)) { cb(new Error('Invalid uuid')); return; }
+	if ( ! fs.existsSync(path)) {
+		mkdirp(path, function(err) {
+			if (err) { cb(err); return; }
+			cb(null, path);
+		});
+	}
+}
 
 function clearCache(slug, cb) {
 	const	tasks	= [];
@@ -123,7 +155,7 @@ createCacheFolder();
 
 // Create database tables if they are missing
 function createTablesIfNotExists(cb) {
-	const	sql	= 'CREATE TABLE IF NOT EXISTS `images_images` (`uuid` binary(16) NOT NULL, `slug` varchar(255) CHARACTER SET ascii NOT NULL, `image` longblob NOT NULL, PRIMARY KEY (`uuid`), UNIQUE KEY `slug` (`slug`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
+	const	sql	= 'CREATE TABLE IF NOT EXISTS `images_images` (`uuid` binary(16) NOT NULL, `slug` varchar(255) CHARACTER SET ascii NOT NULL, PRIMARY KEY (`uuid`), UNIQUE KEY `slug` (`slug`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
 
 	db.query(sql, function(err) {
 		if (err) { cb(err); return; }
@@ -147,13 +179,10 @@ function getImageBin(options, cb) {
 			if (err || ! fileBuf) {
 				createFile(function(err) {
 					if (err) { cb(err); return; }
-
 					returnFile(cb);
 				});
-
 				return;
 			}
-
 			cb(null, fileBuf);
 		});
 	}
@@ -308,14 +337,9 @@ function getImages(options, cb) {
 		return;
 	}
 
-	sql	= 'SELECT uuid, slug';
-
-	if (options.includeBinaryData) {
-		sql += ', image';
-	}
-
-	sql += '	FROM images_images\n';
-	sql += 'WHERE 1 + 1\n';
+	sql =	'SELECT uuid, slug';
+	sql +=	'	FROM images_images\n';
+	sql +=	'WHERE 1 + 1\n';
 
 	// Only get posts with the current slugs
 	if (options.slugs !== undefined) {
@@ -359,15 +383,29 @@ function getImages(options, cb) {
 		sql += ' OFFSET ' + parseInt(options.offset);
 	}
 
-	if (options.includeBinaryData) {
-		db.query(sql, dbFields, {'ignoreLongQueryWarning': true}, function(err, result) {
+	db.query(sql, dbFields, function(err, result) {
+		let tasks = [];
+		if (options.includeBinaryData) {
+			for (let i = 0; result[i] !== undefined; i ++) {
+				tasks.push(function(cb) {
+					let	uuid = uuidLib.unparse(result[i].uuid),
+						path = getPathToImage(uuid);
+
+						if (err) { cb(err); return; }
+						fs.readFile(path + uuid + '.jpg', function(err, image) {
+							if (err) { cb(err); return; }
+							result[i].image = image;
+							cb();
+						});
+				});
+			}
+		}
+		async.series(tasks, function(err) {
 			cb(err, result);
 		});
-	} else {
-		db.query(sql, dbFields, function(err, result) {
-			cb(err, result);
-		});
-	}
+
+	});
+
 };
 
 function rmImage(uuid, cb) {
@@ -525,13 +563,13 @@ function saveImage(data, cb) {
 	// Save file data
 	if (data.file) {
 		tasks.push(function(cb) {
-			const	sql	= 'UPDATE images_images SET image = ? WHERE uuid = ?;',
-				dbFields	= [];
-
-				dbFields.push(data.file.bin);
-				dbFields.push(data.uuid);
-
-				db.query(sql, dbFields, cb);
+			createImageDirectory(data.uuid, function(err, path) {
+				if (err) { cb(err); return; }
+				fs.writeFile(path + data.uuid + '.' + imageType(data.file.bin).ext, data.file.bin, function(err) {
+					if (err) { cb(err); return; }
+					cb();
+				});
+			});
 		});
 	}
 
@@ -545,10 +583,7 @@ function saveImage(data, cb) {
 	// Clear cache for this slug
 	tasks.push(function(cb) {
 		db.query('SELECT slug FROM images_images WHERE uuid = ?', [new Buffer(uuidLib.parse(data.uuid))], function(err, rows) {
-			if (err) {
-				cb(err);
-				return;
-			}
+			if (err) { cb(err); return; }
 
 			if (rows.length === 0) {
 				const	err	= new Error('Could not find database row of newly saved image uuid: "' + data.uuid + '"');
