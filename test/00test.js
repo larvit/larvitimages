@@ -85,7 +85,7 @@ describe('Images', function() {
 					}
 				};
 
-		// Load test image
+		// Create testimage
 		tasks.push(function(cb) {
 			lwip.create(1000, 1000, 'red', function(err, image){
 				if (err) throw err;
@@ -113,10 +113,8 @@ describe('Images', function() {
 			};
 			img.getImages(options, function(err, image) {
 				if (err) throw err;
-
-				bufferEqual(image[0].image, saveObj.file.bin);
+				assert(bufferEqual(image[0].image, saveObj.file.bin));
 				assert.deepEqual(saveObj.file.name, image[0].slug);
-
 				cb();
 			});
 		});
@@ -127,7 +125,6 @@ describe('Images', function() {
 		});
 	});
 });
-
 
 after(function(done) {
 	db.removeAllTables(done);

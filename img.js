@@ -155,7 +155,7 @@ createCacheFolder();
 
 // Create database tables if they are missing
 function createTablesIfNotExists(cb) {
-	const	sql	= 'CREATE TABLE IF NOT EXISTS `images_images` (`uuid` binary(16) NOT NULL, `slug` varchar(255) CHARACTER SET ascii NOT NULL, PRIMARY KEY (`uuid`), UNIQUE KEY `slug` (`slug`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
+	const	sql	= 'CREATE TABLE IF NOT EXISTS `images_images` (`uuid` binary(16) NOT NULL, `slug` varchar(255) CHARACTER SET ascii NOT NULL, `type` varchar(255) CHARACTER SET ascii NOT NULL, PRIMARY KEY (`uuid`), UNIQUE KEY `slug` (`slug`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
 
 	db.query(sql, function(err) {
 		if (err) { cb(err); return; }
@@ -337,7 +337,7 @@ function getImages(options, cb) {
 		return;
 	}
 
-	sql =	'SELECT uuid, slug';
+	sql =	'SELECT uuid, slug, type';
 	sql +=	'	FROM images_images\n';
 	sql +=	'WHERE 1 + 1\n';
 
@@ -392,7 +392,7 @@ function getImages(options, cb) {
 						path = getPathToImage(uuid);
 
 						if (err) { cb(err); return; }
-						fs.readFile(path + uuid + '.jpg', function(err, image) {
+						fs.readFile(path + uuid + '.' + result[i].type, function(err, image) {
 							if (err) { cb(err); return; }
 							result[i].image = image;
 							cb();
@@ -544,13 +544,21 @@ function saveImage(data, cb) {
 		});
 	});
 
+	// Set image type
+	if (data.file !== undefined) {
+		tasks.push(function(cb) {
+			data.file.type = imageType(data.file.bin).ext;
+			cb();
+		});
+	}
+
 	// Create a new image if id is not set
 	if (data.uuid === undefined) {
 		tasks.push(function(cb) {
 			data.uuid = uuidLib.v4();
 
-			const	sql	= 'INSERT INTO images_images (uuid, slug) VALUES(?, ?);',
-				dbFields	= [new Buffer(uuidLib.parse(data.uuid)), data.slug];
+			const	sql	= 'INSERT INTO images_images (uuid, slug, type) VALUES(?, ?, ?);',
+				dbFields	= [new Buffer(uuidLib.parse(data.uuid)), data.slug, data.file.type];
 
 			db.query(sql, dbFields, function(err) {
 				if (err) { cb(err); return; }
@@ -565,7 +573,7 @@ function saveImage(data, cb) {
 		tasks.push(function(cb) {
 			createImageDirectory(data.uuid, function(err, path) {
 				if (err) { cb(err); return; }
-				fs.writeFile(path + data.uuid + '.' + imageType(data.file.bin).ext, data.file.bin, function(err) {
+				fs.writeFile(path + data.uuid + '.' + data.file.type, data.file.bin, function(err) {
 					if (err) { cb(err); return; }
 					cb();
 				});
