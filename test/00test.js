@@ -1,6 +1,7 @@
 'use strict';
 
 const	bufferEqual	= require('buffer-equal'),
+	uuidLib	= require('node-uuid'),
 	assert	= require('assert'),
 	async	= require('async'),
 	lwip	= require('lwip'),
@@ -74,14 +75,14 @@ before(function(done) {
 	async.series(tasks, done);
 });
 
-describe('Images', function() {
+describe('LarvitImages', function() {
 
 	it('should save an image in database', function(done) {
 		const	tasks	= [];
 
 		let saveObj = {
 					'file': {
-						'name': 'testimage.jpg'
+						'name': 'testimage1.jpg'
 					}
 				};
 
@@ -90,6 +91,7 @@ describe('Images', function() {
 			lwip.create(1000, 1000, 'red', function(err, image){
 				if (err) throw err;
 				image.toBuffer('jpg', {'quality': 100}, function(err, image) {
+					if (err) throw err;
 					saveObj.file.bin = image;
 					cb();
 				});
@@ -124,7 +126,65 @@ describe('Images', function() {
 			done();
 		});
 	});
+
+	it('should remove an image', function(done) {
+		const	tasks	= [];
+
+		let saveObj = {
+					'file': {
+						'name': 'testimage2.jpg'
+					}
+				};
+
+		// Create testimage
+		tasks.push(function(cb) {
+			lwip.create(1000, 1000, 'red', function(err, image){
+				if (err) throw err;
+				image.toBuffer('jpg', {'quality': 100}, function(err, image) {
+					if (err) throw err;
+					saveObj.file.bin = image;
+					cb();
+				});
+			});
+		});
+
+		// Save test image
+		tasks.push(function(cb) {
+			img.saveImage(saveObj, function(err, image) {
+				if (err) throw err;
+				saveObj.uuid = uuidLib.unparse(image.uuid);
+				cb();
+			});
+		});
+
+		// Remove image
+		tasks.push(function(cb) {
+			img.rmImage(saveObj.uuid, cb);
+		});
+
+		// Get saved image to if is gone
+		tasks.push(function(cb) {
+			const options = {
+				'uuids': [saveObj.uuid],
+				'includeBinaryData':	true
+			};
+			img.getImages(options, function(err, image) {
+				if (err) throw err;
+				assert.deepEqual(image.length, 0);
+				cb();
+			});
+		});
+
+		async.series(tasks, function(err) {
+			if (err) throw err;
+			done();
+		});
+
+	});
+
 });
+
+
 
 after(function(done) {
 	db.removeAllTables(done);

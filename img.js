@@ -411,26 +411,34 @@ function getImages(options, cb) {
 function rmImage(uuid, cb) {
 	const	tasks	= [];
 
-	let	slug;
+	let	slug,
+		type;
 
 	// Get slug
 	tasks.push(function(cb) {
-		db.query('SELECT slug FROM images_images WHERE uuid = ?', [uuid], function(err, rows) {
+		db.query('SELECT * FROM images_images WHERE uuid = ?', [new Buffer(uuidLib.parse(uuid))], function(err, rows) {
 			if (err) {
 				cb(err);
 				return;
 			}
 
-			if (rows.length) {
+			if (rows.length > 0) {
 				slug	= rows[0].slug;
+				type = rows[0].type;
 			}
 
 			cb();
 		});
 	});
 
+	// Delete database entry
 	tasks.push(function(cb) {
-		db.query('DELETE FROM images_images WHERE uuid = ?', [uuid], cb);
+		db.query('DELETE FROM images_images WHERE uuid = ?', [new Buffer(uuidLib.parse(uuid))], cb);
+	});
+
+	// Delete actual file
+	tasks.push(function(cb) {
+		fs.unlink(getPathToImage(uuid) + uuid + '.' + type, cb);
 	});
 
 	tasks.push(function(cb) {
@@ -442,7 +450,7 @@ function rmImage(uuid, cb) {
 		clearCache(slug, cb);
 	});
 
-	async.parallel(tasks, cb);
+	async.series(tasks, cb);
 }
 
 /**
