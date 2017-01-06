@@ -21,13 +21,13 @@ let	eventEmitter	= new events.EventEmitter(),
 	dbChecked	= false,
 	config	= require(__dirname + '/config/images.json');
 
-exports.cacheDir = os.tmpdir() + '/larvitimages_cache_' + process.pid;
+exports.cacheDir = os.tmpdir() + '/larvitimages_cache';
 
 
 /**
  * Get path to image
  *
- * @param str	- 'd893b68d-bb64-40ac-bec7-14e640a235a6,d893b68d-bb64-40ac-bec7-14e640a235a6'
+ * @param str	- 'd893b68d-bb64-40ac-bec7-14e640a235a6'
  *
  */
 function getPathToImage(uuid) {
@@ -37,7 +37,7 @@ function getPathToImage(uuid) {
 /**
  * Get path to image
  *
- * @param str	- 'd893b68d-bb64-40ac-bec7-14e640a235a6,d893b68d-bb64-40ac-bec7-14e640a235a6'
+ * @param str	- 'd893b68d-bb64-40ac-bec7-14e640a235a6'
  * @param func cb	- callback(err, path)
  *
  */
