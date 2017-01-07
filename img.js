@@ -8,7 +8,6 @@ const	uuidValidate	= require('uuid-validate'),
 	mkdirp	= require('mkdirp'),
 	async	= require('async'),
 	utils	= require('larvitutils'),
-	mime	= require('mime-types'),
 	path	= require('path'),
 	lwip	= require('lwip'),
 	log	= require('winston'),
@@ -21,34 +20,65 @@ let	eventEmitter	= new events.EventEmitter(),
 	dbChecked	= false,
 	config	= require(__dirname + '/config/images.json');
 
-exports.cacheDir = os.tmpdir() + '/larvitimages_cache';
-
-
-/**
- * Get path to image
- *
- * @param str	- 'd893b68d-bb64-40ac-bec7-14e640a235a6'
- *
- */
-function getPathToImage(uuid) {
-	return config.storage + uuid.substr(0, 4).split('').join('/') + '/';
+if (config.cachePath !== undefined) {
+	exports.cacheDir = config.cachePath;
+} else {
+	exports.cacheDir = os.tmpdir() + '/larvitimages_cache';
 }
 
 /**
  * Get path to image
  *
  * @param str	- 'd893b68d-bb64-40ac-bec7-14e640a235a6'
+ *
+ */
+function getPathToImage(uuid, cache) {
+	if (cache) {
+		return exports.cacheDir + uuid.substr(0, 4).split('').join('/') + '/';
+	} else {
+		return	config.storagePath + uuid.substr(0, 4).split('').join('/') + '/';
+	}
+}
+
+/**
+ * Get path to image
+ *
+ * @param str uuid 	- 'd893b68d-bb64-40ac-bec7-14e640a235a6'
+ * @param bool cache	- true/false // optional
  * @param func cb	- callback(err, path)
  *
  */
-function createImageDirectory(uuid, cb) {
-	let	path	= config.storage + uuid.substr(0, 4).split('').join('/') + '/';
+function createImageDirectory(uuid, cache, cb) {
+	let path = '';
+
+	if (typeof cache === 'function') {
+		cb	= cache;
+		cache	= false;
+	}
+
+	// Check if storage path is defined and set it.
+	if (config.storagePath === undefined) {
+		cb(new Error('No defined path for storing images.'));
+		return;
+	}
+
+	if (cache) {
+		path = exports.cacheDir + uuid.substr(0, 4).split('').join('/') + '/';
+	} else {
+		path	= config.storagePath + uuid.substr(0, 4).split('').join('/') + '/';
+	}
+
 
 	if ( ! uuidValidate(uuid, 4)) { cb(new Error('Invalid uuid')); return; }
 	if ( ! fs.existsSync(path)) {
 		mkdirp(path, function(err) {
-			if (err) { cb(err); return; }
-			cb(null, path);
+			if (err) {
+				log.error('larvitimages: createImageDirectory() - Could not create folder: "' + pathr + '" err: ' + err.message);
+			} else {
+				log.verbose('larvitimages: createImageDirectory() - Folder "' + path + '" created');
+			}
+
+			cb(err, path);
 		});
 	}
 }
@@ -122,36 +152,8 @@ function clearCache(slug, cb) {
 		});
 	});
 
-	// Create the folder if it did not exist
-	tasks.push(function(cb) {
-		if (exists) {
-			cb();
-			return;
-		}
-
-		createCacheFolder(cb);
-	});
-
 	async.series(tasks, cb);
 }
-
-function createCacheFolder(cb) {
-	if (typeof cb !== 'function') {
-		cb = function() {};
-	}
-
-	mkdirp(exports.cacheDir, function(err) {
-		if (err) {
-			log.error('larvitimages: createCacheFolder() - Could not create cache folder: "' + exports.cacheDir + '" err: ' + err.message);
-		} else {
-			log.verbose('larvitimages: createCacheFolder() - Cache folder "' + exports.cacheDir + '" created');
-		}
-
-		cb(err);
-	});
-}
-
-createCacheFolder();
 
 // Create database tables if they are missing
 function createTablesIfNotExists(cb) {
@@ -168,111 +170,117 @@ createTablesIfNotExists(function(err) {
 });
 
 function getImageBin(options, cb) {
-	let	cachedFile	= exports.cacheDir + '/' + options.slug;
 
-	if (options.width)	cachedFile += '_w' + options.width;
-	if (options.height)	cachedFile += '_h' + options.height;
+	let	existingFile,
+		cachedFile,
+		fileToLoad,
+		imgType,
+		uuid;
 
-	// Check if cached file exists, and if so, return it
-	function returnFile(cb) {
-		fs.readFile(cachedFile, function(err, fileBuf) {
-			if (err || ! fileBuf) {
-				createFile(function(err) {
-					if (err) { cb(err); return; }
-					returnFile(cb);
-				});
-				return;
-			}
-			cb(null, fileBuf);
-		});
-	}
+	getImages({'slugs': options.slug}, function(err, images) {
+		if (err) { cb(err); return; }
 
-	function createFile(cb) {
-		getImages({'slugs': options.slug, 'includeBinaryData': true}, function(err, images) {
-			let	imgRatio,
-				imgType,
-				imgMime;
+		if (images.length === 0) {
+			cb(new Error('File not found'));
+			return;
+		}
 
-			if (err) { cb(err); return; }
+		uuid	= uuidLib.unparse(images[0].uuid);
+		imgType	=	images[0].type;
+		existingFile	= getPathToImage(uuid, false) + uuid + '.' + imgType;
+		cachedFile	= getPathToImage(uuid, true) + uuid;
+		fileToLoad	= existingFile;
 
-			if (images.length === 0) {
-				cb(new Error('File not found'));
-				return;
-			}
+		if (options.width || options.height) {
+			if (options.width)	cachedFile += '_w' + options.width;
+			if (options.height)	cachedFile += '_h' + options.height;
+			cachedFile += '.' + imgType;
+			fileToLoad = cachedFile;
+		}
 
-			imgMime = mime.lookup(options.slug) || 'application/octet-stream';
-			if (imgMime === 'image/png') {
-				imgType = 'png';
-			} else if (imgMime === 'image/jpeg') {
-				imgType = 'jpg';
-			} else if (imgMime === 'image/gif') {
-				imgType = 'gif';
-			} else {
-				imgType = false;
-			}
+		// Check if cached file exists, and if so, return it
+		function returnFile(cb) {
+			fs.readFile(fileToLoad, function(err, fileBuf) {
+				if (err || ! fileBuf) {
+					createFile(function(err) {
+						if (err) { cb(err); return; }
+						returnFile(cb);
+					});
+					return;
+				}
+				cb(null, fileBuf);
+			});
+		}
 
-			if (options.width || options.height) {
-				lwip.open(images[0].image, imgType, function(err, lwipImage) {
-					let	imgWidth,
-						imgHeight;
+		function createFile(cb) {
+			fs.readFile(existingFile, function(err, image) {
+				let	imgRatio;
 
-					if (err) { cb(err); return; }
+				if (err) { cb(err); return; }
 
-					imgWidth	= lwipImage.width();
-					imgHeight	= lwipImage.height();
-					imgRatio	= imgWidth / imgHeight;
+				if (options.width || options.height) {
+					lwip.open(image, imgType, function(err, lwipImage) {
+						let	imgWidth,
+							imgHeight;
 
-					// Set the missing height or width if only one is given
-					if (options.width && ! options.height) {
-						options.height = Math.round(options.width / imgRatio);
-					}
+						if (err) { cb(err); return; }
 
-					if (options.height && ! options.width) {
-						options.width = Math.round(options.height * imgRatio);
-					}
+						imgWidth	= lwipImage.width();
+						imgHeight	= lwipImage.height();
+						imgRatio	= imgWidth / imgHeight;
 
-					if ( ! utils.isInt(options.height) || ! utils.isInt(options.width)) {
-						const err = new Error('Options.height or options.width is not an integer. Options: ' + JSON.stringify(options));
-						log.warn('larvitimages: getImageBin() - createFile() - ' + err.message);
-						cb(err);
-						return;
-					}
+						// Set the missing height or width if only one is given
+						if (options.width && ! options.height) {
+							options.height = Math.round(options.width / imgRatio);
+						}
 
-					lwipImage.batch()
-						.resize(parseInt(options.width), parseInt(options.height))
-						.toBuffer(imgType, {}, function(err, imgBuf) {
-							if (err) {
-								log.warn('larvitimages: getImageBin() - createFile() - Error from lwip: ' + err.message);
-								cb(err);
-								return;
-							}
+						if (options.height && ! options.width) {
+							options.width = Math.round(options.height * imgRatio);
+						}
 
-							mkdirp(path.dirname(cachedFile), function(err) {
-								if (err && err.message.substring(0, 6) !== 'EEXIST') {
+						if ( ! utils.isInt(options.height) || ! utils.isInt(options.width)) {
+							const err = new Error('Options.height or options.width is not an integer. Options: ' + JSON.stringify(options));
+							log.warn('larvitimages: getImageBin() - createFile() - ' + err.message);
+							cb(err);
+							return;
+						}
+
+						lwipImage.batch()
+							.resize(parseInt(options.width), parseInt(options.height))
+							.toBuffer(imgType, {}, function(err, imgBuf) {
+								if (err) {
 									log.warn('larvitimages: getImageBin() - createFile() - Error from lwip: ' + err.message);
 									cb(err);
 									return;
 								}
 
-								fs.writeFile(cachedFile, imgBuf, cb);
+								mkdirp(path.dirname(cachedFile), function(err) {
+									if (err && err.message.substring(0, 6) !== 'EEXIST') {
+										log.warn('larvitimages: getImageBin() - createFile() - Error from lwip: ' + err.message);
+										cb(err);
+										return;
+									}
+
+									fs.writeFile(cachedFile, imgBuf, cb);
+								});
 							});
-						});
-				});
-			} else {
-				mkdirp(path.dirname(cachedFile), function(err) {
-					if (err && err.message.substring(0, 6) !== 'EEXIST') {
-						log.warn('larvitimages: getImageBin() - createFile() - Could not create folder: ' + err.message);
-						cb(err);
-						return;
-					}
+					});
+				} else {
+					mkdirp(path.dirname(cachedFile), function(err) {
+						if (err && err.message.substring(0, 6) !== 'EEXIST') {
+							log.warn('larvitimages: getImageBin() - createFile() - Could not create folder: ' + err.message);
+							cb(err);
+							return;
+						}
 
-					fs.writeFile(cachedFile, images[0].image, cb);
-				});
-			}
-		});
-	}
+						fs.writeFile(cachedFile, images[0].image, cb);
+					});
+				}
+			});
+		}
 
-	returnFile(cb);
+		returnFile(cb);
+	});
 }
 
 /**
@@ -297,12 +305,13 @@ function getImages(options, cb) {
 		options	= {};
 	}
 
+
 	log.debug('larvitimages: getImages() - Called with options: "' + JSON.stringify(options) + '"');
 
 	// Make sure options that should be arrays actually are arrays
 	// This will simplify our lives in the SQL builder below
 	if (options.uuids !== undefined && ! (options.uuids instanceof Array)) {
-		options.uuids = [options.uids];
+		options.uuids = [options.uuids];
 	}
 
 	if (options.slugs !== undefined && ! (options.slugs instanceof Array)) {
@@ -324,6 +333,15 @@ function getImages(options, cb) {
 
 	if (options.limit === undefined) {
 		options.limit = 10;
+	}
+
+	// Convert uuids to buffers
+	if (options.uuids !== undefined) {
+		for (let i = 0; options.uuids[i] !== undefined; i ++) {
+			if ( ! (options.uuids[i] instanceof Buffer))  {
+				options.uuids[i] = new Buffer(uuidLib.parse(options.uuids[i]));
+			}
+		}
 	}
 
 	// Make sure the database tables exists before going further!
@@ -617,9 +635,8 @@ function saveImage(data, cb) {
 		if (err) { cb(err); return; }
 
 		// Re-read this entry from the database to be sure to get the right deal!
-		getImages({'ids': data.uuid}, function(err, images) {
+		getImages({'uuids': data.uuid}, function(err, images) {
 			if (err) { cb(err); return; }
-
 			cb(null, images[0]);
 		});
 	});
