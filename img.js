@@ -7,12 +7,12 @@ const	uuidValidate	= require('uuid-validate'),
 	events	= require('events'),
 	mkdirp	= require('mkdirp'),
 	async	= require('async'),
-	utils	= require('larvitutils'),
+	lUtils	= require('larvitutils'),
 	path	= require('path'),
 	lwip	= require('lwip'),
 	log	= require('winston'),
 	os	= require('os'),
-	fs	= require('fs'),
+	fs	= require('fs-extra'),
 	db	= require('larvitdb'),
 	_	= require('lodash');
 
@@ -68,7 +68,6 @@ function createImageDirectory(uuid, cache, cb) {
 		path	= config.storagePath + uuid.substr(0, 4).split('').join('/') + '/';
 	}
 
-
 	if ( ! uuidValidate(uuid, 4)) { cb(new Error('Invalid uuid')); return; }
 	if ( ! fs.existsSync(path)) {
 		mkdirp(path, function(err) {
@@ -83,74 +82,121 @@ function createImageDirectory(uuid, cache, cb) {
 	}
 }
 
-function clearCache(slug, cb) {
+function clearCache(options, cb) {
 	const	tasks	= [];
-
 	let	exists;
 
-	if (typeof slug === 'function') {
-		cb	= slug;
-		slug	= undefined;
+	if (typeof options === 'function') {
+		cb	= options;
+		options	= {};
 	}
 
-	if (slug === undefined) {
-		slug	= '';
+	if (Object.keys(options).length === 0) {
+		options.clearAll = true;
 	}
 
 	if (typeof cb !== 'function') {
 		cb	= function(){};
 	}
 
-	// Check if the folder exists at all
-	tasks.push(function(cb) {
-		fs.stat(exports.cacheDir, function(err, stats) {
-			if (err && err.code === 'ENOENT') {
-				exists = false;
+	if (options.clearAll) {
+		tasks.push(function(cb) {
+			fs.stat(exports.cacheDir, function(err, stats) {
+				if (err && err.code === 'ENOENT') {
+					exists = false;
+					cb();
+					return;
+				} else if (err) {
+					log.error('larvitimages: clearCache() - Unknown error when fs.stat(' + exports.cacheDir + '): ' + err.message);
+					cb(err);
+					return;
+				}
+
+				exists	= stats.isDirectory();
 				cb();
-				return;
-			} else if (err) {
-				log.error('larvitimages: clearCache() - Unknown error when fs.stat(' + exports.cacheDir + '): ' + err.message);
-				cb(err);
-				return;
-			}
-
-			exists	= stats.isDirectory();
-
-			cb();
+			});
 		});
-	});
 
-	// Remove files
-	tasks.push(function(cb) {
-		const	tasks	= [];
+		// Delete
+		tasks.push(function(cb) {
+			fs.remove(exports.cacheDir, cb);
+		});
+	} else {
 
-		if (exists === false) {
-			cb();
-			return;
+		// if no uuid is given get image data by slug.
+		if (options.uuid === undefined) {
+			tasks.push(function(cb) {
+				getImages({'slugs': [options.slug]}, function(err, image) {
+					if (err) throw err;
+					if (image.length === 0) {
+						log.warn('larvitimages: clearCache() - No image found in database with slug: ' +  options.slug);
+						exists = false;
+					} else {
+						options.uuid = lUtils.formatUuid(image[0].uuid);
+					}
+					cb();
+				});
+			});
 		}
 
-		fs.readdir(exports.cacheDir, function(err, files) {
-			if (err) { cb(err); return; }
 
-			for (let i = 0; files[i] !== undefined; i ++) {
-				const	fileName	= files[i];
-
-				if (slug === '' || fileName.substring(0, slug.length) === slug) {
-					tasks.push(function(cb) {
-						fs.unlink(exports.cacheDir + '/' + fileName, function(err) {
-							if (err) {
-								log.warn('larvitimages: clearCache() - Could not remove file: "' + fileName + '", err: ' + err.message);
-							}
-
-							cb(err);
-						});
-					});
-				}
+		// Check if the folder exists at all
+		tasks.push(function(cb) {
+			if (exists === false) {
+				cb();
+				return;
 			}
 
-			async.parallel(tasks, cb);
+			fs.stat(getPathToImage(options.uuid, true), function(err, stats) {
+				if (err && err.code === 'ENOENT') {
+					exists = false;
+					cb();
+					return;
+				} else if (err) {
+					log.error('larvitimages: clearCache() - Unknown error when fs.stat(' + exports.cacheDir + '): ' + err.message);
+					cb(err);
+					return;
+				}
+
+				exists	= stats.isDirectory();
+				cb();
+			});
 		});
-	});
+
+
+		// Remove files
+		tasks.push(function(cb) {
+			const	tasks	= [];
+
+			if (exists === false) {
+				cb();
+				return;
+			}
+
+			fs.readdir(getPathToImage(options.uuid, true), function(err, files) {
+				if (err) { cb(err); return; }
+
+				for (let i = 0; files[i] !== undefined; i ++) {
+					const	fileName	= files[i];
+
+					if (fileName.substring(0, options.uuid.length) === options.uuid) {
+						tasks.push(function(cb) {
+							fs.unlink(getPathToImage(options.uuid, true) + fileName, function(err) {
+								if (err) {
+									log.warn('larvitimages: clearCache() - Could not remove file: "' + fileName + '", err: ' + err.message);
+								}
+								cb(err);
+							});
+						});
+					}
+				}
+
+				async.parallel(tasks, cb);
+			});
+		});
+	}
+
+
 
 	async.series(tasks, cb);
 }
@@ -238,7 +284,7 @@ function getImageBin(options, cb) {
 							options.width = Math.round(options.height * imgRatio);
 						}
 
-						if ( ! utils.isInt(options.height) || ! utils.isInt(options.width)) {
+						if ( ! lUtils.isInt(options.height) || ! lUtils.isInt(options.width)) {
 							const err = new Error('Options.height or options.width is not an integer. Options: ' + JSON.stringify(options));
 							log.warn('larvitimages: getImageBin() - createFile() - ' + err.message);
 							cb(err);
@@ -465,7 +511,7 @@ function rmImage(uuid, cb) {
 			return;
 		}
 
-		clearCache(slug, cb);
+		clearCache({'slug': slug}, cb);
 	});
 
 	async.series(tasks, cb);
@@ -626,7 +672,7 @@ function saveImage(data, cb) {
 				return;
 			}
 
-			clearCache(rows[0].slug, cb);
+			clearCache({'slug': rows[0].slug}, cb);
 		});
 	});
 
@@ -643,6 +689,7 @@ function saveImage(data, cb) {
 };
 
 exports.clearCache	= clearCache;
+exports.getPathToImage	= getPathToImage;
 exports.getImageBin	= getImageBin;
 exports.getImages	= getImages;
 exports.rmImage	= rmImage;

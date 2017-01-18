@@ -1,13 +1,14 @@
 'use strict';
 
 const	bufferEqual	= require('buffer-equal'),
+	lUtils	= require('larvitutils'),
 	uuidLib	= require('node-uuid'),
 	assert	= require('assert'),
 	async	= require('async'),
 	lwip	= require('lwip'),
 	log	= require('winston'),
 	db	= require('larvitdb'),
-	fs	= require('fs');
+	fs	= require('fs-extra');
 
 let	img;
 
@@ -478,9 +479,88 @@ describe('LarvitImages', function() {
 			img.getImageBin(options, function(err, image) {
 				if (err) throw err;
 				lwip.open(image, 'jpg', function(err, image){
+
 					assert.deepEqual(options.width, image.width());
 					assert.deepEqual(options.height, image.height());
 				});
+				cb();
+			});
+		});
+
+		async.series(tasks, function(err) {
+			if (err) throw err;
+			done();
+		});
+	});
+
+	it('should clear cached image based on slug', function(done) {
+		const	tasks	= [];
+
+		let saveObj = {
+					'file': {
+						'name': 'testimage9.jpg'
+					}
+				};
+
+		// Create testimage
+		tasks.push(function(cb) {
+			lwip.create(1000, 1000, 'black', function(err, image){
+				if (err) throw err;
+				image.toBuffer('jpg', {'quality': 100}, function(err, image) {
+					if (err) throw err;
+					saveObj.file.bin = image;
+					cb();
+				});
+			});
+		});
+
+		// Save test image
+		tasks.push(function(cb) {
+			img.saveImage(saveObj, function(err, image) {
+				if (err) throw err;
+				saveObj.uuid = image.uuid;
+				cb();
+			});
+		});
+
+		// Get saved image
+		tasks.push(function(cb) {
+			const options = {
+				'slug': saveObj.file.name,
+				'width': 400,
+				'height':400
+			};
+
+			img.getImageBin(options, function(err, image) {
+				if (err) throw err;
+				lwip.open(image, 'jpg', function(err, image){
+					assert.deepEqual(options.width, image.width());
+					assert.deepEqual(options.height, image.height());
+				});
+				cb();
+			});
+		});
+
+		// Clear created image cached
+		tasks.push(function(cb) {
+			const	options = {
+					'slug': saveObj.file.name
+			};
+
+			img.clearCache(options, function(err) {
+				if (err) throw err;
+
+				cb();
+			});
+		});
+
+		// Check if cached image is deleted
+		tasks.push(function(cb) {
+			const	uuid = lUtils.formatUuid(saveObj.uuid),
+				path = img.cacheDir + uuid.substr(0, 4).split('').join('/') + '/' + uuid + '_w400_h400.jpg';
+
+			fs.stat(path, function(err) {
+				assert(err);
 				cb();
 			});
 		});
