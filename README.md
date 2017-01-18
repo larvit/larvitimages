@@ -2,14 +2,6 @@
 
 Image resizing, admin page and database for images meta data.
 
-Important! To be able to load the images in the browser, add this to larvitbase config:
-
-```javascript
-serverConf.customRoutes = [{
-	'regex':	'^/uploaded/images/',
-	'controllerName':	'serveDbImages'
-}];
-```
 
 ## Fetch image from browser
 
@@ -22,3 +14,73 @@ To rescale to width 200px: http://something.com/uploaded/images/test.jpg?width=2
 To rescale to height 200px: http://something.com/uploaded/images/test.jpg?height=200
 
 To rescale regardless of aspect ratio: http://something.com/uploaded/images/test.jpg?width=200&height=200
+
+
+## Configuration
+
+##### LarvitBase
+To be able to load the images in the browser, add this to larvitbase config:
+```javascript
+serverConf.customRoutes = [{
+	'regex':	'^/uploaded/images/',
+	'controllerName':	'serveDbImages'
+}];
+```
+
+#### Paths
+Configuring the paths to directories the image will be stored.
+
+```json
+{
+	"storagePath": "/path/to/storage/",	// This is mandatory
+	"cachePath": "/path/to/cache/"	// Optional, default is /tmp/larvitimages_cache
+}
+```
+
+## Usage
+
+#### Save image
+```javascript
+const imgLib = require('larvitimages'),
+			image = {
+				'slug' : 'Some string',
+				'file': {
+					'bin': imageBuffer
+				}
+			};
+
+img.saveImage(saveObj, function(err, image) {
+	if (err) throw err;
+	// Image is saved, to something fun
+	cb();
+});
+```
+
+
+#### Get image by uuid
+```javascript
+const options = {
+	'uuids': ['f997a1a8-272c-4817-885c-981ad78b9700'],
+	'includeBinaryData':	true // If false or undefined only image data will be fetched.
+};
+
+img.getImages(options, function(err, image) {
+	if (err) throw err;
+	// Do something with you image
+	cb();
+});
+```
+
+#### Get image by slug
+```javascript
+const options = {
+	'slugs': ['Some slug'],
+	'includeBinaryData':	true // If false or undefined only image data will be fetched.
+};
+
+img.getImages(options, function(err, image) {
+	if (err) throw err;
+	// Do something with you image
+	cb();
+});
+```
