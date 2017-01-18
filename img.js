@@ -82,6 +82,17 @@ function createImageDirectory(uuid, cache, cb) {
 	}
 }
 
+
+/**
+ * Clear Cache
+ *
+ * @param obj options -	{ // All options are optional!
+ *		'slug':	'slug'	// As strin
+ *		'uuid':	'd893b68d-bb64-40ac-bec7-14e640a235a6'	// As string
+ *		'clearAll':	boolean	// If true it clears all cache. Options object empty = true
+ *	}
+ * @param func cb - callback(err)
+ */
 function clearCache(options, cb) {
 	const	tasks	= [];
 	let	exists;
