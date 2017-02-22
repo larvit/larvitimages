@@ -139,11 +139,11 @@ function clearCache(options, cb) {
 			tasks.push(function(cb) {
 				getImages({'slugs': [options.slug]}, function(err, image) {
 					if (err) throw err;
-					if (image.length === 0) {
+					if (Object.keys(image).length === 0) {
 						log.warn('larvitimages: clearCache() - No image found in database with slug: ' +  options.slug);
 						exists = false;
 					} else {
-						options.uuid = lUtils.formatUuid(image[0].uuid);
+						options.uuid = lUtils.formatUuid(image[Object.keys(image)[0]].uuid);
 					}
 					cb();
 				});
@@ -214,13 +214,26 @@ function clearCache(options, cb) {
 
 // Create database tables if they are missing
 function createTablesIfNotExists(cb) {
-	const	sql	= 'CREATE TABLE IF NOT EXISTS `images_images` (`uuid` binary(16) NOT NULL, `slug` varchar(255) CHARACTER SET ascii NOT NULL, `type` varchar(255) CHARACTER SET ascii NOT NULL, PRIMARY KEY (`uuid`), UNIQUE KEY `slug` (`slug`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
+	const tasks = [];
 
-	db.query(sql, function(err) {
+	// Create Image table
+	tasks.push(function(cb) {
+		const	sql	= 'CREATE TABLE IF NOT EXISTS `images_images` (`uuid` binary(16) NOT NULL, `slug` varchar(255) CHARACTER SET ascii NOT NULL, `type` varchar(255) CHARACTER SET ascii NOT NULL, PRIMARY KEY (`uuid`), UNIQUE KEY `slug` (`slug`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
+		db.query(sql, cb);
+	});
+
+	// Create metadata table
+	tasks.push(function(cb) {
+		const	sql	= 'CREATE TABLE `images_images_metadata` (`imageUuid` binary(16) NOT NULL,`name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,`data` varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL, KEY `imageUuid` (`imageUuid`), CONSTRAINT `images_images_metadata_ibfk_1` FOREIGN KEY (`imageUuid`) REFERENCES `images_images` (`uuid`) ON DELETE NO ACTION) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
+		db.query(sql, cb);
+	});
+
+	async.parallel(tasks, function(err) {
 		if (err) { cb(err); return; }
 		dbChecked = true;
 		eventEmitter.emit('checked');
 	});
+
 }
 createTablesIfNotExists(function(err) {
 	log.error('larvitimages: createTablesIfNotExists() - Database error: ' + err.message);
@@ -353,17 +366,15 @@ function getImageBin(options, cb) {
  * @param func cb - callback(err, images)
  */
 function getImages(options, cb) {
-	const	dbFields = [];
-
-	let	sql;
+	const	dbFields	= [],
+		metadata	= [],
+		images	= {},
+		tasks	= [];
 
 	if (typeof options === 'function') {
 		cb	= options;
 		options	= {};
 	}
-
-
-	log.debug('larvitimages: getImages() - Called with options: "' + JSON.stringify(options) + '"');
 
 	// Make sure options that should be arrays actually are arrays
 	// This will simplify our lives in the SQL builder below
@@ -412,72 +423,119 @@ function getImages(options, cb) {
 		return;
 	}
 
-	sql =	'SELECT uuid, slug, type';
-	sql +=	'	FROM images_images\n';
-	sql +=	'WHERE 1 + 1\n';
+	log.debug('larvitimages: getImages() - Called with options: "' + JSON.stringify(options) + '"');
 
-	// Only get posts with the current slugs
-	if (options.slugs !== undefined) {
-		sql += '	AND (slug IN (';
 
-		for (let i = 0; options.slugs[i] !== undefined; i ++) {
-			sql += '?,';
-			dbFields.push(options.slugs[i]);
+	function generateWhere() {
+		let sql = '';
+
+		sql +=	'WHERE 1 + 1\n';
+
+		// Only get posts with the current slugs
+		if (options.slugs !== undefined) {
+			sql += '	AND (images.slug IN (';
+
+			for (let i = 0; options.slugs[i] !== undefined; i ++) {
+				sql += '?,';
+				dbFields.push(options.slugs[i]);
+			}
+
+			// Select by slug without file ending
+			sql = sql.substring(0, sql.length - 1) + ') OR SUBSTRING(images.slug, 1, CHAR_LENGTH(images.slug) - 1 - CHAR_LENGTH(SUBSTRING_INDEX(images.slug, \'.\', -1))) IN (';
+
+			for (let i = 0; options.slugs[i] !== undefined; i ++) {
+				sql += '?,';
+				dbFields.push(options.slugs[i]);
+			}
+
+			sql = sql.substring(0, sql.length - 1) + '))\n';
 		}
 
-		// Select by slug without file ending
-		sql = sql.substring(0, sql.length - 1) + ') OR SUBSTRING(slug, 1, CHAR_LENGTH(slug) - 1 - CHAR_LENGTH(SUBSTRING_INDEX(slug, \'.\', -1))) IN (';
+		// Only get posts with given ids
+		if (options.uuids !== undefined) {
+			sql += '	AND images.uuid IN (';
 
-		for (let i = 0; options.slugs[i] !== undefined; i ++) {
-			sql += '?,';
-			dbFields.push(options.slugs[i]);
+			for (let i = 0; options.uuids[i] !== undefined; i ++) {
+				sql += '?,';
+				dbFields.push(options.uuids[i]);
+			}
+
+			sql = sql.substring(0, sql.length - 1) + ')\n';
 		}
 
-		sql = sql.substring(0, sql.length - 1) + '))\n';
+		return sql;
 	}
 
-	// Only get posts with given ids
-	if (options.uuids !== undefined) {
-		sql += '	AND uuid IN (';
+	// Get images
+	tasks.push(function(cb) {
+		let	sql =	'SELECT images.uuid, images.slug, images.type\n';
+			sql	+=	'FROM images_images as images\n';
+			sql	+= generateWhere();
+			sql	+= 'ORDER BY images.slug\n';
 
-		for (let i = 0; options.uuids[i] !== undefined; i ++) {
-			sql += '?,';
-			dbFields.push(options.uuids[i]);
+		if (options.limit) {
+			sql += 'LIMIT ' + parseInt(options.limit) + '\n';
 		}
 
-		sql = sql.substring(0, sql.length - 1) + ')\n';
-	}
+		if (options.limit && options.offset !== undefined) {
+			sql += ' OFFSET ' + parseInt(options.offset);
+		}
 
-	sql += 'ORDER BY slug\n';
-
-	if (options.limit) {
-		sql += 'LIMIT ' + parseInt(options.limit) + '\n';
-	}
-
-	if (options.limit && options.offset !== undefined) {
-		sql += ' OFFSET ' + parseInt(options.offset);
-	}
-
-	db.query(sql, dbFields, function(err, result) {
-		let tasks = [];
-		if (options.includeBinaryData) {
+		db.query(sql, dbFields, function(err, result) {
 			for (let i = 0; result[i] !== undefined; i ++) {
-				tasks.push(function(cb) {
-					let	uuid = uuidLib.unparse(result[i].uuid),
-						path = getPathToImage(uuid);
+				images[uuidLib.unparse(result[i].uuid)] 	= result[i];
+				images[uuidLib.unparse(result[i].uuid)].uuid	= uuidLib.unparse(result[i].uuid);
+				images[result[i].uuid].metadata	= [];
+			}
+			cb(err);
+		});
+	});
+
+	// Get metadata
+	tasks.push(function(cb) {
+		let	sql	= '';
+
+		sql	+= 'SELECT * FROM images_images_metadata as metadata\n';
+		sql	+= 'WHERE imageUuid IN (SELECT images.uuid FROM images_images as images ' + generateWhere() +  ')';
+
+		db.query(sql, dbFields, function(err, result) {
+			for (let i = 0; result[i] !== undefined; i ++) {
+				result[i].imageUuid = uuidLib.unparse(result[i].imageUuid);
+				metadata.push(result[i]);
+			}
+			cb(err);
+		});
+	});
+
+	async.series(tasks, function(err) {
+		for (let i = 0; metadata[i] !== undefined; i ++) {
+			let imageUuid = metadata[i].imageUuid;
+			delete metadata[i].imageUuid;
+			images[imageUuid].metadata.push(metadata[i]);
+		}
+
+
+		if (options.includeBinaryData) {
+			const	subtasks	= [];
+			for (let uuid in images) {
+				subtasks.push(function(cb) {
+					let	path = getPathToImage(uuid);
 
 						if (err) { cb(err); return; }
-						fs.readFile(path + uuid + '.' + result[i].type, function(err, image) {
+						fs.readFile(path + uuid + '.' + images[uuid].type, function(err, image) {
 							if (err) { cb(err); return; }
-							result[i].image = image;
+							images[uuid].image = image;
 							cb();
 						});
 				});
 			}
+
+			async.parallel(subtasks, function(err) {
+				cb(err, images);
+			});
+		} else {
+			cb(err, images);
 		}
-		async.series(tasks, function(err) {
-			cb(err, result);
-		});
 
 	});
 
@@ -509,6 +567,11 @@ function rmImage(uuid, cb) {
 	// Delete database entry
 	tasks.push(function(cb) {
 		db.query('DELETE FROM images_images WHERE uuid = ?', [new Buffer(uuidLib.parse(uuid))], cb);
+	});
+
+	// Delete metadata
+	tasks.push(function(cb) {
+		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', [new Buffer(uuidLib.parse(uuid))], cb);
 	});
 
 	// Delete actual file
@@ -586,7 +649,7 @@ function saveImage(data, cb) {
 		});
 	}
 
-	// Set the slug if need be
+	// Set the slug if needed
 	tasks.push(function(cb) {
 		const	dbFields	= [];
 
@@ -671,6 +734,30 @@ function saveImage(data, cb) {
 		});
 	}
 
+	// Save metadata
+	// First delete all existing metadata about this image
+	tasks.push(function(cb) {
+		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', [new Buffer(uuidLib.parse(data.uuid))], cb);
+	});
+
+	// Insert new metadata
+	if (data.metadata !== undefined) {
+		tasks.push(function(cb) {
+			const	dbFields	= [];
+			let	sql	= 'INSERT INTO images_images_metadata (imageUuid, name, data) VALUES ';
+
+			for (let i = 0; data.metadata[i] !== undefined; i ++) {
+				sql += '(?,?,?), ';
+				dbFields.push(new Buffer(uuidLib.parse(data.uuid)));
+				dbFields.push(data.metadata[i].name);
+				dbFields.push(data.metadata[i].data);
+			}
+
+			sql = sql.substring(0, sql.length - 2) + ';';
+			db.query(sql, dbFields, cb);
+		});
+	}
+
 	// Clear cache for this slug
 	tasks.push(function(cb) {
 		db.query('SELECT slug FROM images_images WHERE uuid = ?', [new Buffer(uuidLib.parse(data.uuid))], function(err, rows) {
@@ -694,7 +781,7 @@ function saveImage(data, cb) {
 		// Re-read this entry from the database to be sure to get the right deal!
 		getImages({'uuids': data.uuid}, function(err, images) {
 			if (err) { cb(err); return; }
-			cb(null, images[0]);
+			cb(null, images[Object.keys(images)[0]]);
 		});
 	});
 };

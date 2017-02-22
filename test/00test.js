@@ -110,15 +110,79 @@ describe('LarvitImages', function() {
 
 		// Get saved image
 		tasks.push(function(cb) {
-
 			const options = {
 				'uuids': [saveObj.uuid],
 				'includeBinaryData':	true
 			};
-			img.getImages(options, function(err, image) {
+			img.getImages(options, function(err, images) {
 				if (err) throw err;
-				assert(bufferEqual(image[0].image, saveObj.file.bin));
-				assert.deepEqual(saveObj.file.name, image[0].slug);
+				let image = images[Object.keys(images)[0]];
+				assert(bufferEqual(image.image, saveObj.file.bin));
+				assert.deepEqual(saveObj.file.name, image.slug);
+				cb();
+			});
+		});
+
+		async.series(tasks, function(err) {
+			if (err) throw err;
+			done();
+		});
+	});
+
+	it('should save an image in database with metadata', function(done) {
+		const	tasks	= [];
+
+		let	saveObj	=
+			{
+				'file': {
+					'name': 'testimage1_1.jpg'
+				},
+				'metadata': [
+					{
+						'name': 'deer',
+						'data': 'tasty'
+					},
+					{
+						'name': 'frog',
+						'data': 'disgusting'
+					}
+				]
+			};
+
+		// Create testimage
+		tasks.push(function(cb) {
+			lwip.create(1000, 1000, 'red', function(err, image){
+				if (err) throw err;
+				image.toBuffer('jpg', {'quality': 100}, function(err, image) {
+					if (err) throw err;
+					saveObj.file.bin = image;
+					cb();
+				});
+			});
+		});
+
+		// Save test image
+		tasks.push(function(cb) {
+			img.saveImage(saveObj, function(err, image) {
+				if (err) throw err;
+				saveObj.uuid = image.uuid;
+				cb();
+			});
+		});
+
+		// Get saved image
+		tasks.push(function(cb) {
+			const options = {
+				'uuids': [saveObj.uuid],
+				'includeBinaryData':	true
+			};
+			img.getImages(options, function(err, images) {
+				if (err) throw err;
+				let image = images[Object.keys(images)[0]];
+				assert(bufferEqual(image.image, saveObj.file.bin));
+				assert.deepEqual(saveObj.file.name, image.slug);
+				assert.deepEqual(saveObj.metadata[0], image.metadata[0]);
+				assert.deepEqual(saveObj.metadata[1], image.metadata[1]);
 				cb();
 			});
 		});
@@ -183,7 +247,7 @@ describe('LarvitImages', function() {
 		});
 
 	});
-
+/*
 	it('should get image by uuid', function(done) {
 		const	tasks	= [];
 
@@ -570,7 +634,7 @@ describe('LarvitImages', function() {
 			done();
 		});
 	});
-
+*/
 });
 
 after(function(done) {
