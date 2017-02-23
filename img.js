@@ -249,14 +249,19 @@ function getImageBin(options, cb) {
 
 	getImages({'slugs': options.slug}, function(err, images) {
 		if (err) { cb(err); return; }
+		let image;
 
-		if (images.length === 0) {
+		if (Object.keys(images).length === 0) {
 			cb(new Error('File not found'));
 			return;
+		} else {
+			image = images[Object.keys(images)[0]];
 		}
 
-		uuid	= uuidLib.unparse(images[0].uuid);
-		imgType	=	images[0].type;
+
+
+		uuid	= image.uuid;
+		imgType	=	image.type;
 		existingFile	= getPathToImage(uuid, false) + uuid + '.' + imgType;
 		cachedFile	= getPathToImage(uuid, true) + uuid;
 		fileToLoad	= existingFile;

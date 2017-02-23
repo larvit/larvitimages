@@ -2,7 +2,6 @@
 
 const	bufferEqual	= require('buffer-equal'),
 	lUtils	= require('larvitutils'),
-	uuidLib	= require('node-uuid'),
 	assert	= require('assert'),
 	async	= require('async'),
 	lwip	= require('lwip'),
@@ -20,6 +19,8 @@ log.remove(log.transports.Console);
 	'timestamp':	true,
 	'json':	false
 });/**/
+
+// let image = images[Object.keys(images)[0]];
 
 before(function(done) {
 	const	tasks	= [];
@@ -225,7 +226,7 @@ describe('LarvitImages', function() {
 
 		// Remove image
 		tasks.push(function(cb) {
-			img.rmImage(uuidLib.unparse(saveObj.uuid), cb);
+			img.rmImage(saveObj.uuid, cb);
 		});
 
 		// Get saved image to see if it's gone
@@ -234,9 +235,9 @@ describe('LarvitImages', function() {
 				'uuids': [saveObj.uuid],
 				'includeBinaryData':	true
 			};
-			img.getImages(options, function(err, image) {
+			img.getImages(options, function(err, images) {
 				if (err) throw err;
-				assert.deepEqual(image.length, 0);
+				assert.deepEqual(Object.keys(images).length, 0);
 				cb();
 			});
 		});
@@ -247,7 +248,7 @@ describe('LarvitImages', function() {
 		});
 
 	});
-/*
+
 	it('should get image by uuid', function(done) {
 		const	tasks	= [];
 
@@ -284,10 +285,11 @@ describe('LarvitImages', function() {
 				'uuids': [saveObj.uuid],
 				'includeBinaryData':	true
 			};
-			img.getImages(options, function(err, image) {
+			img.getImages(options, function(err, images) {
 				if (err) throw err;
-				assert(bufferEqual(saveObj.file.bin, image[0].image));
-				assert.deepEqual(saveObj.file.name, image[0].slug);
+				let image = images[Object.keys(images)[0]];
+				assert(bufferEqual(saveObj.file.bin, image.image));
+				assert.deepEqual(saveObj.file.name, image.slug);
 				cb();
 			});
 		});
@@ -334,10 +336,11 @@ describe('LarvitImages', function() {
 				'slugs': [saveObj.file.name],
 				'includeBinaryData':	true
 			};
-			img.getImages(options, function(err, image) {
+			img.getImages(options, function(err, images) {
 				if (err) throw err;
-				assert(bufferEqual(image[0].image, saveObj.file.bin));
-				assert.deepEqual(saveObj.file.name, image[0].slug);
+				let image = images[Object.keys(images)[0]];
+				assert(bufferEqual(image.image, saveObj.file.bin));
+				assert.deepEqual(saveObj.file.name, image.slug);
 				cb();
 			});
 		});
@@ -634,7 +637,7 @@ describe('LarvitImages', function() {
 			done();
 		});
 	});
-*/
+
 });
 
 after(function(done) {
