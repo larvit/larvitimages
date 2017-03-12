@@ -1,9 +1,0 @@
-{
-	"connectionLimit":   10,
-	"host":              "172.17.0.3",
-	"user":              "root",
-	"password":          "passord2011",
-	"charset":           "utf8mb4_general_ci",
-	"supportBigNumbers": true,
-	"database":          "test"
-}
