@@ -70,7 +70,7 @@ function createImageDirectory(uuid, cache, cb) {
 
 	if ( ! uuidValidate(uuid, 4)) { cb(new Error('Invalid uuid')); return; }
 	if ( ! fs.existsSync(path)) {
-		mkdirp(path, function(err) {
+		mkdirp(path, function (err) {
 			if (err) {
 				log.error('larvitimages: createImageDirectory() - Could not create folder: "' + pathr + '" err: ' + err.message);
 			} else {
@@ -107,12 +107,12 @@ function clearCache(options, cb) {
 	}
 
 	if (typeof cb !== 'function') {
-		cb	= function(){};
+		cb	= function (){};
 	}
 
 	if (options.clearAll) {
-		tasks.push(function(cb) {
-			fs.stat(exports.cacheDir, function(err, stats) {
+		tasks.push(function (cb) {
+			fs.stat(exports.cacheDir, function (err, stats) {
 				if (err && err.code === 'ENOENT') {
 					exists = false;
 					cb();
@@ -129,15 +129,15 @@ function clearCache(options, cb) {
 		});
 
 		// Delete
-		tasks.push(function(cb) {
+		tasks.push(function (cb) {
 			fs.remove(exports.cacheDir, cb);
 		});
 	} else {
 
 		// if no uuid is given get image data by slug.
 		if (options.uuid === undefined) {
-			tasks.push(function(cb) {
-				getImages({'slugs': [options.slug]}, function(err, image) {
+			tasks.push(function (cb) {
+				getImages({'slugs': [options.slug]}, function (err, image) {
 					if (err) throw err;
 					if (Object.keys(image).length === 0) {
 						log.warn('larvitimages: clearCache() - No image found in database with slug: ' +  options.slug);
@@ -152,13 +152,13 @@ function clearCache(options, cb) {
 
 
 		// Check if the folder exists at all
-		tasks.push(function(cb) {
+		tasks.push(function (cb) {
 			if (exists === false) {
 				cb();
 				return;
 			}
 
-			fs.stat(getPathToImage(options.uuid, true), function(err, stats) {
+			fs.stat(getPathToImage(options.uuid, true), function (err, stats) {
 				if (err && err.code === 'ENOENT') {
 					exists = false;
 					cb();
@@ -176,23 +176,20 @@ function clearCache(options, cb) {
 
 
 		// Remove files
-		tasks.push(function(cb) {
+		tasks.push(function (cb) {
 			const	tasks	= [];
 
-			if (exists === false) {
-				cb();
-				return;
-			}
+			if (exists === false) return cb();
 
-			fs.readdir(getPathToImage(options.uuid, true), function(err, files) {
-				if (err) { cb(err); return; }
+			fs.readdir(getPathToImage(options.uuid, true), function (err, files) {
+				if (err) return cb(err);
 
 				for (let i = 0; files[i] !== undefined; i ++) {
 					const	fileName	= files[i];
 
 					if (fileName.substring(0, options.uuid.length) === options.uuid) {
-						tasks.push(function(cb) {
-							fs.unlink(getPathToImage(options.uuid, true) + fileName, function(err) {
+						tasks.push(function (cb) {
+							fs.unlink(getPathToImage(options.uuid, true) + fileName, function (err) {
 								if (err) {
 									log.warn('larvitimages: clearCache() - Could not remove file: "' + fileName + '", err: ' + err.message);
 								}
@@ -207,8 +204,6 @@ function clearCache(options, cb) {
 		});
 	}
 
-
-
 	async.series(tasks, cb);
 }
 
@@ -217,39 +212,39 @@ function createTablesIfNotExists(cb) {
 	const tasks = [];
 
 	// Create Image table
-	tasks.push(function(cb) {
+	tasks.push(function (cb) {
 		const	sql	= 'CREATE TABLE IF NOT EXISTS `images_images` (`uuid` binary(16) NOT NULL, `slug` varchar(255) CHARACTER SET ascii NOT NULL, `type` varchar(255) CHARACTER SET ascii NOT NULL, PRIMARY KEY (`uuid`), UNIQUE KEY `slug` (`slug`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
 		db.query(sql, cb);
 	});
 
 	// Create metadata table
-	tasks.push(function(cb) {
+	tasks.push(function (cb) {
 		const	sql	= 'CREATE TABLE `images_images_metadata` (`imageUuid` binary(16) NOT NULL,`name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,`data` varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL, KEY `imageUuid` (`imageUuid`), CONSTRAINT `images_images_metadata_ibfk_1` FOREIGN KEY (`imageUuid`) REFERENCES `images_images` (`uuid`) ON DELETE NO ACTION) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
 		db.query(sql, cb);
 	});
 
-	async.parallel(tasks, function(err) {
-		if (err) { cb(err); return; }
+	async.parallel(tasks, function (err) {
+		if (err) return cb(err);
 		dbChecked = true;
 		eventEmitter.emit('checked');
 	});
 
 }
-createTablesIfNotExists(function(err) {
+createTablesIfNotExists(function (err) {
 	log.error('larvitimages: createTablesIfNotExists() - Database error: ' + err.message);
 });
 
 function getImageBin(options, cb) {
-
 	let	existingFile,
 		cachedFile,
 		fileToLoad,
 		imgType,
 		uuid;
 
-	getImages({'slugs': options.slug}, function(err, images) {
-		if (err) { cb(err); return; }
+	getImages({'slugs': options.slug}, function (err, images) {
 		let image;
+
+		if (err) return cb(err);
 
 		if (Object.keys(images).length === 0) {
 			cb(new Error('File not found'));
@@ -257,8 +252,6 @@ function getImageBin(options, cb) {
 		} else {
 			image = images[Object.keys(images)[0]];
 		}
-
-
 
 		uuid	= image.uuid;
 		imgType	=	image.type;
@@ -275,10 +268,10 @@ function getImageBin(options, cb) {
 
 		// Check if cached file exists, and if so, return it
 		function returnFile(cb) {
-			fs.readFile(fileToLoad, function(err, fileBuf) {
+			fs.readFile(fileToLoad, function (err, fileBuf) {
 				if (err || ! fileBuf) {
-					createFile(function(err) {
-						if (err) { cb(err); return; }
+					createFile(function (err) {
+						if (err) return cb(err);
 						returnFile(cb);
 					});
 					return;
@@ -288,17 +281,17 @@ function getImageBin(options, cb) {
 		}
 
 		function createFile(cb) {
-			fs.readFile(existingFile, function(err, image) {
+			fs.readFile(existingFile, function (err, image) {
 				let	imgRatio;
 
-				if (err) { cb(err); return; }
+				if (err) return cb(err);
 
 				if (options.width || options.height) {
-					lwip.open(image, imgType, function(err, lwipImage) {
+					lwip.open(image, imgType, function (err, lwipImage) {
 						let	imgWidth,
 							imgHeight;
 
-						if (err) { cb(err); return; }
+						if (err) return cb(err);
 
 						imgWidth	= lwipImage.width();
 						imgHeight	= lwipImage.height();
@@ -322,14 +315,14 @@ function getImageBin(options, cb) {
 
 						lwipImage.batch()
 							.resize(parseInt(options.width), parseInt(options.height))
-							.toBuffer(imgType, {}, function(err, imgBuf) {
+							.toBuffer(imgType, {}, function (err, imgBuf) {
 								if (err) {
 									log.warn('larvitimages: getImageBin() - createFile() - Error from lwip: ' + err.message);
 									cb(err);
 									return;
 								}
 
-								mkdirp(path.dirname(cachedFile), function(err) {
+								mkdirp(path.dirname(cachedFile), function (err) {
 									if (err && err.message.substring(0, 6) !== 'EEXIST') {
 										log.warn('larvitimages: getImageBin() - createFile() - Error from lwip: ' + err.message);
 										cb(err);
@@ -341,7 +334,7 @@ function getImageBin(options, cb) {
 							});
 					});
 				} else {
-					mkdirp(path.dirname(cachedFile), function(err) {
+					mkdirp(path.dirname(cachedFile), function (err) {
 						if (err && err.message.substring(0, 6) !== 'EEXIST') {
 							log.warn('larvitimages: getImageBin() - createFile() - Could not create folder: ' + err.message);
 							cb(err);
@@ -393,7 +386,7 @@ function getImages(options, cb) {
 
 	// Trim slugs from slashes
 	if (options.slugs) {
-		_.each(options.slugs, function(slug, idx) {
+		_.each(options.slugs, function (slug, idx) {
 			options.slugs[idx] = _.trim(slug, '/');
 		});
 	}
@@ -420,7 +413,7 @@ function getImages(options, cb) {
 	// Make sure the database tables exists before going further!
 	if ( ! dbChecked) {
 		log.debug('larvitimages: getImages() - Database not checked, rerunning this method when event have been emitted.');
-		eventEmitter.on('checked', function() {
+		eventEmitter.on('checked', function () {
 			log.debug('larvitimages: getImages() - Database check event received, rerunning getImages().');
 			getImages(options, cb);
 		});
@@ -472,11 +465,12 @@ function getImages(options, cb) {
 	}
 
 	// Get images
-	tasks.push(function(cb) {
-		let	sql =	'SELECT images.uuid, images.slug, images.type\n';
-			sql	+=	'FROM images_images as images\n';
-			sql	+= generateWhere();
-			sql	+= 'ORDER BY images.slug\n';
+	tasks.push(function (cb) {
+		let	sql	=	'SELECT images.uuid, images.slug, images.type\n';
+
+		sql	+=	'FROM images_images as images\n';
+		sql	+= generateWhere();
+		sql	+= 'ORDER BY images.slug\n';
 
 		if (options.limit) {
 			sql += 'LIMIT ' + parseInt(options.limit) + '\n';
@@ -486,7 +480,7 @@ function getImages(options, cb) {
 			sql += ' OFFSET ' + parseInt(options.offset);
 		}
 
-		db.query(sql, dbFields, function(err, result) {
+		db.query(sql, dbFields, function (err, result) {
 			for (let i = 0; result[i] !== undefined; i ++) {
 				images[uuidLib.unparse(result[i].uuid)] 	= result[i];
 				images[uuidLib.unparse(result[i].uuid)].uuid	= uuidLib.unparse(result[i].uuid);
@@ -497,13 +491,13 @@ function getImages(options, cb) {
 	});
 
 	// Get metadata
-	tasks.push(function(cb) {
+	tasks.push(function (cb) {
 		let	sql	= '';
 
 		sql	+= 'SELECT * FROM images_images_metadata as metadata\n';
 		sql	+= 'WHERE imageUuid IN (SELECT images.uuid FROM images_images as images ' + generateWhere() +  ')';
 
-		db.query(sql, dbFields, function(err, result) {
+		db.query(sql, dbFields, function (err, result) {
 			for (let i = 0; result[i] !== undefined; i ++) {
 				result[i].imageUuid = uuidLib.unparse(result[i].imageUuid);
 				metadata.push(result[i]);
@@ -512,7 +506,7 @@ function getImages(options, cb) {
 		});
 	});
 
-	async.series(tasks, function(err) {
+	async.series(tasks, function (err) {
 		for (let i = 0; metadata[i] !== undefined; i ++) {
 			let imageUuid = metadata[i].imageUuid;
 			delete metadata[i].imageUuid;
@@ -523,27 +517,26 @@ function getImages(options, cb) {
 		if (options.includeBinaryData) {
 			const	subtasks	= [];
 			for (let uuid in images) {
-				subtasks.push(function(cb) {
+				subtasks.push(function (cb) {
 					let	path = getPathToImage(uuid);
 
-						if (err) { cb(err); return; }
-						fs.readFile(path + uuid + '.' + images[uuid].type, function(err, image) {
-							if (err) { cb(err); return; }
-							images[uuid].image = image;
-							cb();
-						});
+					if (err) return cb(err);
+
+					fs.readFile(path + uuid + '.' + images[uuid].type, function (err, image) {
+						if (err) return cb(err);
+						images[uuid].image = image;
+						cb();
+					});
 				});
 			}
 
-			async.parallel(subtasks, function(err) {
+			async.parallel(subtasks, function (err) {
 				cb(err, images);
 			});
 		} else {
 			cb(err, images);
 		}
-
 	});
-
 };
 
 function rmImage(uuid, cb) {
@@ -553,12 +546,9 @@ function rmImage(uuid, cb) {
 		type;
 
 	// Get slug
-	tasks.push(function(cb) {
-		db.query('SELECT * FROM images_images WHERE uuid = ?', [new Buffer(uuidLib.parse(uuid))], function(err, rows) {
-			if (err) {
-				cb(err);
-				return;
-			}
+	tasks.push(function (cb) {
+		db.query('SELECT * FROM images_images WHERE uuid = ?', [new Buffer(uuidLib.parse(uuid))], function (err, rows) {
+			if (err) return cb(err);
 
 			if (rows.length > 0) {
 				slug	= rows[0].slug;
@@ -570,25 +560,22 @@ function rmImage(uuid, cb) {
 	});
 
 	// Delete database entry
-	tasks.push(function(cb) {
+	tasks.push(function (cb) {
 		db.query('DELETE FROM images_images WHERE uuid = ?', [new Buffer(uuidLib.parse(uuid))], cb);
 	});
 
 	// Delete metadata
-	tasks.push(function(cb) {
+	tasks.push(function (cb) {
 		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', [new Buffer(uuidLib.parse(uuid))], cb);
 	});
 
 	// Delete actual file
-	tasks.push(function(cb) {
+	tasks.push(function (cb) {
 		fs.unlink(getPathToImage(uuid) + uuid + '.' + type, cb);
 	});
 
-	tasks.push(function(cb) {
-		if ( ! slug) {
-			cb();
-			return;
-		}
+	tasks.push(function (cb) {
+		if ( ! slug) return cb();
 
 		clearCache({'slug': slug}, cb);
 	});
@@ -614,7 +601,7 @@ function saveImage(data, cb) {
 	// Make sure the database tables exists before going further!
 	if ( ! dbChecked) {
 		log.debug('larvitimages: saveImage() - Database not checked, rerunning this method when event have been emitted.');
-		eventEmitter.on('checked', function() {
+		eventEmitter.on('checked', function () {
 			log.debug('larvitimages: saveImage() - Database check event received, rerunning saveImage().');
 			exports.saveImage(data, cb);
 		});
@@ -625,37 +612,33 @@ function saveImage(data, cb) {
 	// If id is missing, we MUST have a file
 	if (data.uuid === undefined && data.file === undefined) {
 		log.info('larvitimages: saveImage() - Upload file is missing, but required since no ID is supplied.');
-		cb(new Error('Image file is required'));
-		return;
+		return cb(new Error('Image file is required'));
 	}
 
 
 	// If we have an image file, make sure the format is correct
 	if (data.file !== undefined) {
-		tasks.push(function(cb) {
+		tasks.push(function (cb) {
 
 			// As a first step, check the mime type, since this is already given to us
 			if (imageType(data.file.bin).mime !== 'image/png' && imageType(data.file.bin).mime !== 'image/jpeg' && imageType(data.file.bin).mime !== 'image/gif') {
 				log.info('larvitimages: saveImage() - Invalid mime type "' + data.uploadedFile.type + '" for uploaded file.');
-				cb(new Error('Invalid file format, must be of image type PNG, JPEG or GIF'));
-				return;
+				return cb(new Error('Invalid file format, must be of image type PNG, JPEG or GIF'));
 			}
 
 			// Then actually checks so the file loads in our image lib
-			lwip.open(data.file.bin, imageType(data.file.bin).ext, function(err) {
+			lwip.open(data.file.bin, imageType(data.file.bin).ext, function (err) {
 				if (err) {
 					log.warn('larvitimages: saveImage() - Unable to open uploaded file: ' + err.message);
-					cb(err);
-					return;
 				}
 
-				cb();
+				cb(err);
 			});
 		});
 	}
 
 	// Set the slug if needed
-	tasks.push(function(cb) {
+	tasks.push(function (cb) {
 		const	dbFields	= [];
 
 		let sql;
@@ -668,8 +651,7 @@ function saveImage(data, cb) {
 		// If no slug is set by here, it means an id is supplied and the slug
 		// should not change in the database, no need to check anything more here
 		if ( ! data.slug) {
-			cb();
-			return;
+			return cb();
 		} else {
 			data.slug	= slugify(data.slug, {'save': ['.', '/']});
 			data.slug	= _.trim(data.slug, '/');
@@ -683,12 +665,11 @@ function saveImage(data, cb) {
 			dbFields.push(new Buffer(uuidLib.parse(data.uuid)));
 		}
 
-		db.query(sql, dbFields, function(err, rows) {
-			if (err) { cb(err); return; }
+		db.query(sql, dbFields, function (err, rows) {
+			if (err) return cb(err);
 
 			if (rows.length) {
-				cb(new Error('Slug is used by another image entry, try setting another one manually.'));
-				return;
+				return cb(new Error('Slug is used by another image entry, try setting another one manually.'));
 			}
 
 			cb();
@@ -697,7 +678,7 @@ function saveImage(data, cb) {
 
 	// Set image type
 	if (data.file !== undefined) {
-		tasks.push(function(cb) {
+		tasks.push(function (cb) {
 			data.file.type = imageType(data.file.bin).ext;
 			cb();
 		});
@@ -705,14 +686,14 @@ function saveImage(data, cb) {
 
 	// Create a new image if id is not set
 	if (data.uuid === undefined) {
-		tasks.push(function(cb) {
+		tasks.push(function (cb) {
 			data.uuid = uuidLib.v4();
 
 			const	sql	= 'INSERT INTO images_images (uuid, slug, type) VALUES(?, ?, ?);',
 				dbFields	= [new Buffer(uuidLib.parse(data.uuid)), data.slug, data.file.type];
 
-			db.query(sql, dbFields, function(err) {
-				if (err) { cb(err); return; }
+			db.query(sql, dbFields, function (err) {
+				if (err) return cb(err);
 				log.debug('larvitimages: saveImage() - New image created with uuid: "' + data.uuid + '"');
 				cb();
 			});
@@ -721,11 +702,11 @@ function saveImage(data, cb) {
 
 	// Save file data
 	if (data.file) {
-		tasks.push(function(cb) {
-			createImageDirectory(data.uuid, function(err, path) {
-				if (err) { cb(err); return; }
-				fs.writeFile(path + data.uuid + '.' + data.file.type, data.file.bin, function(err) {
-					if (err) { cb(err); return; }
+		tasks.push(function (cb) {
+			createImageDirectory(data.uuid, function (err, path) {
+				if (err) return cb(err);
+				fs.writeFile(path + data.uuid + '.' + data.file.type, data.file.bin, function (err) {
+					if (err) return cb(err);
 					cb();
 				});
 			});
@@ -734,20 +715,20 @@ function saveImage(data, cb) {
 
 	// Save the slug
 	if (data.slug) {
-		tasks.push(function(cb) {
+		tasks.push(function (cb) {
 			db.query('UPDATE images_images SET slug = ? WHERE uuid = ?', [data.slug, new Buffer(uuidLib.parse(data.uuid))], cb);
 		});
 	}
 
 	// Save metadata
 	// First delete all existing metadata about this image
-	tasks.push(function(cb) {
+	tasks.push(function (cb) {
 		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', [new Buffer(uuidLib.parse(data.uuid))], cb);
 	});
 
 	// Insert new metadata
 	if (data.metadata !== undefined) {
-		tasks.push(function(cb) {
+		tasks.push(function (cb) {
 			const	dbFields	= [];
 			let	sql	= 'INSERT INTO images_images_metadata (imageUuid, name, data) VALUES ';
 
@@ -764,28 +745,27 @@ function saveImage(data, cb) {
 	}
 
 	// Clear cache for this slug
-	tasks.push(function(cb) {
-		db.query('SELECT slug FROM images_images WHERE uuid = ?', [new Buffer(uuidLib.parse(data.uuid))], function(err, rows) {
-			if (err) { cb(err); return; }
+	tasks.push(function (cb) {
+		db.query('SELECT slug FROM images_images WHERE uuid = ?', [new Buffer(uuidLib.parse(data.uuid))], function (err, rows) {
+			if (err) return cb(err);
 
 			if (rows.length === 0) {
 				const	err	= new Error('Could not find database row of newly saved image uuid: "' + data.uuid + '"');
 				log.error('larvitimages: saveImage() - ' + err.message);
-				cb(err);
-				return;
+				return cb(err);
 			}
 
 			clearCache({'slug': rows[0].slug}, cb);
 		});
 	});
 
-	async.series(tasks, function(err) {
+	async.series(tasks, function (err) {
 		// Something went wrong. Clean up and callback the error
-		if (err) { cb(err); return; }
+		if (err) return cb(err);
 
 		// Re-read this entry from the database to be sure to get the right deal!
-		getImages({'uuids': data.uuid}, function(err, images) {
-			if (err) { cb(err); return; }
+		getImages({'uuids': data.uuid}, function (err, images) {
+			if (err) return cb(err);
 			cb(null, images[Object.keys(images)[0]]);
 		});
 	});

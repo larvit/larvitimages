@@ -2,7 +2,7 @@
 
 const	images	= require('larvitimages');
 
-exports.run = function(req, res, cb) {
+exports.run = function (req, res, cb) {
 	const	data	= {'global': res.globalData};
 
 	// Make sure the user have the correct rights
@@ -12,7 +12,7 @@ exports.run = function(req, res, cb) {
 		return;
 	}
 
-	images.getImages({'limit': false}, function(err, rows) {
+	images.getImages({'limit': false}, function (err, rows) {
 		data.images = rows;
 		cb(null, req, res, data);
 	});

@@ -4,7 +4,7 @@ const	async	= require('async'),
 	img	= require('larvitimages'),
 	log	= require('winston');
 
-exports.run = function(req, res, cb) {
+exports.run = function (req, res, cb) {
 	const	tasks	= [],
 		data	= {'global': res.globalData};
 
@@ -19,7 +19,7 @@ exports.run = function(req, res, cb) {
 
 	// Save a POSTed form
 	if (res.globalData.formFields.save !== undefined) {
-		tasks.push(function(cb) {
+		tasks.push(function (cb) {
 			const	saveObj	= {};
 
 			if (imgId !== undefined)
@@ -35,7 +35,7 @@ exports.run = function(req, res, cb) {
 				saveObj.slug = res.globalData.formFields.slug;
 			}
 
-			img.saveImage(saveObj, function(err, image) {
+			img.saveImage(saveObj, function (err, image) {
 				if (err) {
 					cb(err);
 					return;
@@ -59,8 +59,8 @@ exports.run = function(req, res, cb) {
 
 	// Delete a image
 	if (res.globalData.formFields.delete !== undefined && imgId !== undefined) {
-		tasks.push(function(cb) {
-			img.rmImage(imgId, function(err) {
+		tasks.push(function (cb) {
+			img.rmImage(imgId, function (err) {
 				if (err) { cb(err); return; }
 
 				req.session.data.nextCallData = {'global': {'messages': ['Image with ID ' + imgId + ' deleted']}};
@@ -73,15 +73,15 @@ exports.run = function(req, res, cb) {
 
 	// Load data from database
 	else if (imgId !== undefined) {
-		tasks.push(function(cb) {
-			img.getImages({'ids': imgId}, function(err, images) {
+		tasks.push(function (cb) {
+			img.getImages({'ids': imgId}, function (err, images) {
 				res.globalData.formFields = images[0];
 				cb();
 			});
 		});
 	}
 
-	async.series(tasks, function(err) {
+	async.series(tasks, function (err) {
 		if (err) {
 			data.global.errors = [err.message];
 		}
