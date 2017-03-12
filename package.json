@@ -8,7 +8,7 @@
   "dependencies": {
     "buffer-equal": "^1.0.0",
     "fs-extra": "^2.0.0",
-    "image-type": "^2.1.0",
+    "image-type": "^3.0.0",
     "larvitdb": "^1.2.4",
     "larvitdbmigration": "^2.0.0",
     "larvitslugify": "^0.10.10",
