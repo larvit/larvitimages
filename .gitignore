@@ -1,2 +1,4 @@
 node_modules
 config/images.json
+config/db_test.json
+config/amqp_test.json
