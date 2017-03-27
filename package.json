@@ -11,13 +11,13 @@
     "image-type": "^3.0.0",
     "larvitdb": "^1.2.4",
     "larvitdbmigration": "^2.0.0",
-    "larvitslugify": "^0.10.10",
     "larvitutils": "^1.1.0",
     "lodash": "^4.15.0",
     "lwip": "0.0.9",
     "mime-types": "^2.1.11",
     "mkdirp": "^0.5.1",
     "node-uuid": "^1.4.7",
+    "slugify": "^1.1.0",
     "uuid": "^3.0.1",
     "uuid-validate": "0.0.2",
     "winston": "^2.2.0"
@@ -39,7 +39,7 @@
     "url": "https://github.com/larvit/larvitimages",
     "type": "git"
   },
-  "version": "0.5.0",
+  "version": "0.5.1",
   "readmeFilename": "README.md",
   "bugs": {
     "url": "https://github.com/larvit/larvitimages/issues"
