@@ -1,15 +1,16 @@
 'use strict';
 
-const	uuidValidate	= require('uuid-validate'),
+const	topLogPrefix	= 'larvitimages: ./img.js - ',
+	uuidValidate	= require('uuid-validate'),
 	imageType	= require('image-type'),
-	uuidLib	= require('node-uuid'),
-	slugify	= require('larvitslugify'),
+	uuidLib	= require('uuid'),
+	slugify	= require('slugify'),
 	events	= require('events'),
 	mkdirp	= require('mkdirp'),
-	async	= require('async'),
 	lUtils	= require('larvitutils'),
+	async	= require('async'),
 	path	= require('path'),
-	lwip	= require('lwip'),
+	jimp	= require('jimp'),
 	log	= require('winston'),
 	os	= require('os'),
 	fs	= require('fs-extra'),
@@ -18,12 +19,24 @@ const	uuidValidate	= require('uuid-validate'),
 
 let	eventEmitter	= new events.EventEmitter(),
 	dbChecked	= false,
+	config;
+
+if (fs.existsSync(__dirname + '/config/images.json')) {
 	config	= require(__dirname + '/config/images.json');
+} else {
+	config = {};
+}
 
 if (config.cachePath !== undefined) {
 	exports.cacheDir = config.cachePath;
 } else {
 	exports.cacheDir = os.tmpdir() + '/larvitimages_cache';
+}
+
+if (config.storagePath !== undefined) {
+	exports.storagePath = config.storagePath;
+} else {
+	exports.storagePath = process.cwd() + '/larvitimages';
 }
 
 /**
@@ -34,9 +47,9 @@ if (config.cachePath !== undefined) {
  */
 function getPathToImage(uuid, cache) {
 	if (cache) {
-		return exports.cacheDir + uuid.substr(0, 4).split('').join('/') + '/';
+		return exports.cacheDir + '/' + uuid.substr(0, 4).split('').join('/') + '/';
 	} else {
-		return	config.storagePath + uuid.substr(0, 4).split('').join('/') + '/';
+		return	exports.storagePath + '/' + uuid.substr(0, 4).split('').join('/') + '/';
 	}
 }
 
@@ -49,7 +62,9 @@ function getPathToImage(uuid, cache) {
  *
  */
 function createImageDirectory(uuid, cache, cb) {
-	let path = '';
+	const	logPrefix	= topLogPrefix + 'createImageDirectory() - ';
+
+	let	path	= '';
 
 	if (typeof cache === 'function') {
 		cb	= cache;
@@ -57,24 +72,18 @@ function createImageDirectory(uuid, cache, cb) {
 	}
 
 	// Check if storage path is defined and set it.
-	if (config.storagePath === undefined) {
-		cb(new Error('No defined path for storing images.'));
-		return;
-	}
+	if (exports.storagePath === undefined) return cb(new Error('No defined path for storing images.'));
 
-	if (cache) {
-		path = exports.cacheDir + uuid.substr(0, 4).split('').join('/') + '/';
-	} else {
-		path	= config.storagePath + uuid.substr(0, 4).split('').join('/') + '/';
-	}
+	path = getPathToImage(uuid, cache);
 
-	if ( ! uuidValidate(uuid, 4)) { cb(new Error('Invalid uuid')); return; }
+	if ( ! uuidValidate(uuid, 4)) return cb(new Error('Invalid uuid'));
+
 	if ( ! fs.existsSync(path)) {
 		mkdirp(path, function (err) {
 			if (err) {
-				log.error('larvitimages: createImageDirectory() - Could not create folder: "' + pathr + '" err: ' + err.message);
+				log.error(logPrefix + 'Could not create folder: "' + path + '" err: ' + err.message);
 			} else {
-				log.verbose('larvitimages: createImageDirectory() - Folder "' + path + '" created');
+				log.verbose(logPrefix + 'Folder "' + path + '" created');
 			}
 
 			cb(err, path);
@@ -94,7 +103,9 @@ function createImageDirectory(uuid, cache, cb) {
  * @param func cb - callback(err)
  */
 function clearCache(options, cb) {
-	const	tasks	= [];
+	const	logPrefix	= topLogPrefix + 'clearCache() - ',
+		tasks	= [];
+
 	let	exists;
 
 	if (typeof options === 'function') {
@@ -114,13 +125,11 @@ function clearCache(options, cb) {
 		tasks.push(function (cb) {
 			fs.stat(exports.cacheDir, function (err, stats) {
 				if (err && err.code === 'ENOENT') {
-					exists = false;
-					cb();
-					return;
+					exists	= false;
+					return cb();
 				} else if (err) {
-					log.error('larvitimages: clearCache() - Unknown error when fs.stat(' + exports.cacheDir + '): ' + err.message);
-					cb(err);
-					return;
+					log.error(logPrefix + 'Unknown error when fs.stat(' + exports.cacheDir + '): ' + err.message);
+					return cb(err);
 				}
 
 				exists	= stats.isDirectory();
@@ -138,9 +147,13 @@ function clearCache(options, cb) {
 		if (options.uuid === undefined) {
 			tasks.push(function (cb) {
 				getImages({'slugs': [options.slug]}, function (err, image) {
-					if (err) throw err;
+					if (err) {
+						log.warn(logPrefix + 'Could not run getImages(), err: ' + err.message);
+						return cb(err);
+					}
+
 					if (Object.keys(image).length === 0) {
-						log.warn('larvitimages: clearCache() - No image found in database with slug: ' +  options.slug);
+						log.warn(logPrefix + 'No image found in database with slug: ' +  options.slug);
 						exists = false;
 					} else {
 						options.uuid = lUtils.formatUuid(image[Object.keys(image)[0]].uuid);
@@ -150,30 +163,23 @@ function clearCache(options, cb) {
 			});
 		}
 
-
 		// Check if the folder exists at all
 		tasks.push(function (cb) {
-			if (exists === false) {
-				cb();
-				return;
-			}
+			if (exists === false) return cb();
 
 			fs.stat(getPathToImage(options.uuid, true), function (err, stats) {
 				if (err && err.code === 'ENOENT') {
 					exists = false;
-					cb();
-					return;
+					return cb();
 				} else if (err) {
-					log.error('larvitimages: clearCache() - Unknown error when fs.stat(' + exports.cacheDir + '): ' + err.message);
-					cb(err);
-					return;
+					log.error(logPrefix + 'Unknown error when fs.stat(' + exports.cacheDir + '): ' + err.message);
+					return cb(err);
 				}
 
 				exists	= stats.isDirectory();
 				cb();
 			});
 		});
-
 
 		// Remove files
 		tasks.push(function (cb) {
@@ -182,7 +188,10 @@ function clearCache(options, cb) {
 			if (exists === false) return cb();
 
 			fs.readdir(getPathToImage(options.uuid, true), function (err, files) {
-				if (err) return cb(err);
+				if (err) {
+					log.warn(logPrefix + 'Could not read dir for image uuid: "' + options.uuid + '", err: ' + err.message);
+					return cb(err);
+				}
 
 				for (let i = 0; files[i] !== undefined; i ++) {
 					const	fileName	= files[i];
@@ -191,7 +200,7 @@ function clearCache(options, cb) {
 						tasks.push(function (cb) {
 							fs.unlink(getPathToImage(options.uuid, true) + fileName, function (err) {
 								if (err) {
-									log.warn('larvitimages: clearCache() - Could not remove file: "' + fileName + '", err: ' + err.message);
+									log.warn(logPrefix + 'Could not remove file: "' + fileName + '", err: ' + err.message);
 								}
 								cb(err);
 							});
@@ -235,30 +244,32 @@ createTablesIfNotExists(function (err) {
 });
 
 function getImageBin(options, cb) {
-	let	existingFile,
+	const	logPrefix	= topLogPrefix + 'getImageBin() - ';
+
+	let	originalFile,
 		cachedFile,
 		fileToLoad,
 		imgType,
 		uuid;
 
 	getImages({'slugs': options.slug}, function (err, images) {
-		let image;
+		let	image;
 
 		if (err) return cb(err);
 
 		if (Object.keys(images).length === 0) {
-			cb(new Error('File not found'));
-			return;
+			return cb();
 		} else {
 			image = images[Object.keys(images)[0]];
 		}
 
 		uuid	= image.uuid;
 		imgType	=	image.type;
-		existingFile	= getPathToImage(uuid, false) + uuid + '.' + imgType;
-		cachedFile	= getPathToImage(uuid, true) + uuid;
-		fileToLoad	= existingFile;
+		originalFile	= getPathToImage(uuid, false) + uuid + '.' + imgType;
+		cachedFile	= getPathToImage(uuid, true) + uuid; // imgType is added later
+		fileToLoad	= originalFile; // Default to fetching the original file
 
+		// If custom width and/or height, use cached file instead
 		if (options.width || options.height) {
 			if (options.width)	cachedFile += '_w' + options.width;
 			if (options.height)	cachedFile += '_h' + options.height;
@@ -281,69 +292,71 @@ function getImageBin(options, cb) {
 		}
 
 		function createFile(cb) {
-			fs.readFile(existingFile, function (err, image) {
-				let	imgRatio;
+			const	locLogPrefix	= logPrefix + 'createFile() - ';
 
-				if (err) return cb(err);
+			jimp.read(originalFile, function (err, image) {
+				let	imgRatio,
+					imgWidth,
+					imgHeight;
 
-				if (options.width || options.height) {
-					lwip.open(image, imgType, function (err, lwipImage) {
-						let	imgWidth,
-							imgHeight;
+				if (err) {
+					log.warn(locLogPrefix + 'Could not read file "' + originalFile + '", err: ' + err.message);
+					return cb(err);
+				}
 
-						if (err) return cb(err);
+				if ( ! options.width && ! options.height) {
+					const	err	= new Error('Cannot create new file without custom height or width. Should\'ve loaded the original file instead');
+					log.warn(locLogPrefix + err.message);
+					return cb(err);
+				}
 
-						imgWidth	= lwipImage.width();
-						imgHeight	= lwipImage.height();
-						imgRatio	= imgWidth / imgHeight;
+				imgWidth	= image.bitmap.width;
+				imgHeight	= image.bitmap.height;
+				imgRatio	= imgWidth / imgHeight;
 
-						// Set the missing height or width if only one is given
-						if (options.width && ! options.height) {
-							options.height = Math.round(options.width / imgRatio);
+				// Set the missing height or width if only one is given
+				if (options.width && ! options.height) {
+					options.height = Math.round(options.width / imgRatio);
+				}
+
+				if (options.height && ! options.width) {
+					options.width = Math.round(options.height * imgRatio);
+				}
+
+				if ( ! lUtils.isInt(options.height) || ! lUtils.isInt(options.width)) {
+					const err = new Error('Options.height or options.width is not an integer. Options: ' + JSON.stringify(options));
+					log.warn(locLogPrefix + err.message);
+					return cb(err);
+				}
+
+				image.resize(options.width, options.height, function (err, image) {
+					if (err) {
+						log.warn(locLogPrefix + 'Could not resize image, err: ' + err.message);
+						return cb(err);
+					}
+
+					image.quality(90, function (err, image) {
+						if (err) {
+							log.warn(locLogPrefix + 'Could not set image quality to 90, err: ' + err.message);
+							return cb(err);
 						}
 
-						if (options.height && ! options.width) {
-							options.width = Math.round(options.height * imgRatio);
-						}
+						mkdirp(path.dirname(cachedFile), function (err) {
+							if (err && err.message.substring(0, 6) !== 'EEXIST') {
+								log.warn(locLogPrefix + 'could not mkdirp "' + path.dirname(cachedFile) + '", err: ' + err.message);
+								return cb(err);
+							}
 
-						if ( ! lUtils.isInt(options.height) || ! lUtils.isInt(options.width)) {
-							const err = new Error('Options.height or options.width is not an integer. Options: ' + JSON.stringify(options));
-							log.warn('larvitimages: getImageBin() - createFile() - ' + err.message);
-							cb(err);
-							return;
-						}
-
-						lwipImage.batch()
-							.resize(parseInt(options.width), parseInt(options.height))
-							.toBuffer(imgType, {}, function (err, imgBuf) {
+							image.write(cachedFile, function (err) {
 								if (err) {
-									log.warn('larvitimages: getImageBin() - createFile() - Error from lwip: ' + err.message);
-									cb(err);
-									return;
+									log.warn(locLogPrefix + 'Could not save image, err: ' + err.message);
 								}
 
-								mkdirp(path.dirname(cachedFile), function (err) {
-									if (err && err.message.substring(0, 6) !== 'EEXIST') {
-										log.warn('larvitimages: getImageBin() - createFile() - Error from lwip: ' + err.message);
-										cb(err);
-										return;
-									}
-
-									fs.writeFile(cachedFile, imgBuf, cb);
-								});
+								cb(err);
 							});
+						});
 					});
-				} else {
-					mkdirp(path.dirname(cachedFile), function (err) {
-						if (err && err.message.substring(0, 6) !== 'EEXIST') {
-							log.warn('larvitimages: getImageBin() - createFile() - Could not create folder: ' + err.message);
-							cb(err);
-							return;
-						}
-
-						fs.writeFile(cachedFile, images[0].image, cb);
-					});
-				}
+				});
 			});
 		}
 
@@ -405,7 +418,7 @@ function getImages(options, cb) {
 	if (options.uuids !== undefined) {
 		for (let i = 0; options.uuids[i] !== undefined; i ++) {
 			if ( ! (options.uuids[i] instanceof Buffer))  {
-				options.uuids[i] = new Buffer(uuidLib.parse(options.uuids[i]));
+				options.uuids[i] = lUtils.uuidToBuffer(options.uuids[i]);
 			}
 		}
 	}
@@ -422,7 +435,6 @@ function getImages(options, cb) {
 	}
 
 	log.debug('larvitimages: getImages() - Called with options: "' + JSON.stringify(options) + '"');
-
 
 	function generateWhere() {
 		let sql = '';
@@ -482,8 +494,8 @@ function getImages(options, cb) {
 
 		db.query(sql, dbFields, function (err, result) {
 			for (let i = 0; result[i] !== undefined; i ++) {
-				images[uuidLib.unparse(result[i].uuid)] 	= result[i];
-				images[uuidLib.unparse(result[i].uuid)].uuid	= uuidLib.unparse(result[i].uuid);
+				images[lUtils.formatUuid(result[i].uuid)] 	= result[i];
+				images[lUtils.formatUuid(result[i].uuid)].uuid	= lUtils.formatUuid(result[i].uuid);
 				images[result[i].uuid].metadata	= [];
 			}
 			cb(err);
@@ -499,7 +511,7 @@ function getImages(options, cb) {
 
 		db.query(sql, dbFields, function (err, result) {
 			for (let i = 0; result[i] !== undefined; i ++) {
-				result[i].imageUuid = uuidLib.unparse(result[i].imageUuid);
+				result[i].imageUuid = lUtils.formatUuid(result[i].imageUuid);
 				metadata.push(result[i]);
 			}
 			cb(err);
@@ -508,17 +520,18 @@ function getImages(options, cb) {
 
 	async.series(tasks, function (err) {
 		for (let i = 0; metadata[i] !== undefined; i ++) {
-			let imageUuid = metadata[i].imageUuid;
+			const	imageUuid	= metadata[i].imageUuid;
+
 			delete metadata[i].imageUuid;
 			images[imageUuid].metadata.push(metadata[i]);
 		}
 
-
 		if (options.includeBinaryData) {
 			const	subtasks	= [];
+
 			for (let uuid in images) {
 				subtasks.push(function (cb) {
-					let	path = getPathToImage(uuid);
+					const	path = getPathToImage(uuid);
 
 					if (err) return cb(err);
 
@@ -547,7 +560,7 @@ function rmImage(uuid, cb) {
 
 	// Get slug
 	tasks.push(function (cb) {
-		db.query('SELECT * FROM images_images WHERE uuid = ?', [new Buffer(uuidLib.parse(uuid))], function (err, rows) {
+		db.query('SELECT * FROM images_images WHERE uuid = ?', [lUtils.uuidToBuffer(uuid)], function (err, rows) {
 			if (err) return cb(err);
 
 			if (rows.length > 0) {
@@ -561,12 +574,12 @@ function rmImage(uuid, cb) {
 
 	// Delete database entry
 	tasks.push(function (cb) {
-		db.query('DELETE FROM images_images WHERE uuid = ?', [new Buffer(uuidLib.parse(uuid))], cb);
+		db.query('DELETE FROM images_images WHERE uuid = ?', [lUtils.uuidToBuffer(uuid)], cb);
 	});
 
 	// Delete metadata
 	tasks.push(function (cb) {
-		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', [new Buffer(uuidLib.parse(uuid))], cb);
+		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', [lUtils.uuidToBuffer(uuid)], cb);
 	});
 
 	// Delete actual file
@@ -589,20 +602,23 @@ function rmImage(uuid, cb) {
  * @param obj data -	{
  *		'uuid':	d8d2bed2-4da1-4650-968c-7acc81b62c92,
  *		'slug':	'barfoo'
- *		'uploadedFile':	File obj from formidable, see https://github.com/felixge/node-formidable for more info
+ *		'file':	File obj from formidable, see https://github.com/felixge/node-formidable#formidablefile for more info
  *	}
  * @param func cb(err, image) - the image will be a row from getImages()
  */
 function saveImage(data, cb) {
-	const	tasks	= [];
+	const	logPrefix	= topLogPrefix + 'saveImage() - ',
+		tasks	= [];
 
-	log.verbose('larvitimages: saveImage() - Running with data. "' + JSON.stringify(data) + '"');
+	let	tmpFilePath;
+
+	log.verbose(logPrefix + 'Running with data. "' + JSON.stringify(data) + '"');
 
 	// Make sure the database tables exists before going further!
 	if ( ! dbChecked) {
-		log.debug('larvitimages: saveImage() - Database not checked, rerunning this method when event have been emitted.');
+		log.debug(logPrefix + 'Database not checked, rerunning this method when event have been emitted.');
 		eventEmitter.on('checked', function () {
-			log.debug('larvitimages: saveImage() - Database check event received, rerunning saveImage().');
+			log.debug(logPrefix + 'Database check event received, rerunning saveImage().');
 			exports.saveImage(data, cb);
 		});
 
@@ -611,29 +627,71 @@ function saveImage(data, cb) {
 
 	// If id is missing, we MUST have a file
 	if (data.uuid === undefined && data.file === undefined) {
-		log.info('larvitimages: saveImage() - Upload file is missing, but required since no ID is supplied.');
+		log.info(logPrefix + 'Upload file is missing, but required since no ID is supplied.');
 		return cb(new Error('Image file is required'));
 	}
 
-
 	// If we have an image file, make sure the format is correct
 	if (data.file !== undefined) {
+		if ( ! data.file.bin && data.file.path) {
+			// Read binary data if it is not read already
+
+			tasks.push(function (cb) {
+				fs.readFile(data.file.path, function (err, data) {
+					data.file.bin	= data;
+					cb(err);
+				});
+			});
+
+		} else if (data.file.bin && ! data.file.path) {
+			// Save bin data to temp file if no path was provided
+
+			tmpFilePath = os.tmpdir() + '/' + uuidLib.v1();
+
+			tasks.push(function (cb) {
+				fs.writeFile(tmpFilePath, data.file.bin, function (err) {
+					if (err) {
+						log.warn(logPrefix + 'Could not write to tmpFilePath: "' + tmpFilePath + '", err: ' + err.message);
+					}
+					cb(err);
+				});
+			});
+
+		} else {
+			const	err	= new Error('Either binary data or file path was given, can not save');
+			log.warn(logPrefix + err.message);
+			return cb(err);
+		}
+
 		tasks.push(function (cb) {
+			let	filePath;
+
+			if (tmpFilePath) {
+				filePath = tmpFilePath;
+			} else {
+				filePath	= data.file.path;
+			}
 
 			// As a first step, check the mime type, since this is already given to us
 			if (imageType(data.file.bin).mime !== 'image/png' && imageType(data.file.bin).mime !== 'image/jpeg' && imageType(data.file.bin).mime !== 'image/gif') {
-				log.info('larvitimages: saveImage() - Invalid mime type "' + data.uploadedFile.type + '" for uploaded file.');
+				log.info(logPrefix + 'Invalid mime type "' + data.uploadedFile.type + '" for uploaded file.');
 				return cb(new Error('Invalid file format, must be of image type PNG, JPEG or GIF'));
 			}
 
 			// Then actually checks so the file loads in our image lib
-			lwip.open(data.file.bin, imageType(data.file.bin).ext, function (err) {
+			jimp.read(filePath, function (err) {
 				if (err) {
-					log.warn('larvitimages: saveImage() - Unable to open uploaded file: ' + err.message);
+					log.warn(logPrefix + 'Unable to open uploaded file: ' + err.message);
 				}
 
 				cb(err);
 			});
+		});
+
+		// Set image type
+		tasks.push(function (cb) {
+			data.file.type = imageType(data.file.bin).ext;
+			cb();
 		});
 	}
 
@@ -662,7 +720,7 @@ function saveImage(data, cb) {
 		dbFields.push(data.slug);
 		if (data.uuid !== undefined) {
 			sql += ' AND uuid != ?';
-			dbFields.push(new Buffer(uuidLib.parse(data.uuid)));
+			dbFields.push(lUtils.uuidToBuffer(data.uuid));
 		}
 
 		db.query(sql, dbFields, function (err, rows) {
@@ -676,25 +734,17 @@ function saveImage(data, cb) {
 		});
 	});
 
-	// Set image type
-	if (data.file !== undefined) {
-		tasks.push(function (cb) {
-			data.file.type = imageType(data.file.bin).ext;
-			cb();
-		});
-	}
-
 	// Create a new image if id is not set
 	if (data.uuid === undefined) {
 		tasks.push(function (cb) {
 			data.uuid = uuidLib.v4();
 
 			const	sql	= 'INSERT INTO images_images (uuid, slug, type) VALUES(?, ?, ?);',
-				dbFields	= [new Buffer(uuidLib.parse(data.uuid)), data.slug, data.file.type];
+				dbFields	= [lUtils.uuidToBuffer(data.uuid), data.slug, data.file.type];
 
 			db.query(sql, dbFields, function (err) {
 				if (err) return cb(err);
-				log.debug('larvitimages: saveImage() - New image created with uuid: "' + data.uuid + '"');
+				log.debug(logPrefix + 'New image created with uuid: "' + data.uuid + '"');
 				cb();
 			});
 		});
@@ -716,14 +766,14 @@ function saveImage(data, cb) {
 	// Save the slug
 	if (data.slug) {
 		tasks.push(function (cb) {
-			db.query('UPDATE images_images SET slug = ? WHERE uuid = ?', [data.slug, new Buffer(uuidLib.parse(data.uuid))], cb);
+			db.query('UPDATE images_images SET slug = ? WHERE uuid = ?', [data.slug, lUtils.uuidToBuffer(data.uuid)], cb);
 		});
 	}
 
 	// Save metadata
 	// First delete all existing metadata about this image
 	tasks.push(function (cb) {
-		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', [new Buffer(uuidLib.parse(data.uuid))], cb);
+		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', [lUtils.uuidToBuffer(data.uuid)], cb);
 	});
 
 	// Insert new metadata
@@ -734,7 +784,7 @@ function saveImage(data, cb) {
 
 			for (let i = 0; data.metadata[i] !== undefined; i ++) {
 				sql += '(?,?,?), ';
-				dbFields.push(new Buffer(uuidLib.parse(data.uuid)));
+				dbFields.push(lUtils.uuidToBuffer(data.uuid));
 				dbFields.push(data.metadata[i].name);
 				dbFields.push(data.metadata[i].data);
 			}
@@ -746,16 +796,29 @@ function saveImage(data, cb) {
 
 	// Clear cache for this slug
 	tasks.push(function (cb) {
-		db.query('SELECT slug FROM images_images WHERE uuid = ?', [new Buffer(uuidLib.parse(data.uuid))], function (err, rows) {
+		db.query('SELECT slug FROM images_images WHERE uuid = ?', [lUtils.uuidToBuffer(data.uuid)], function (err, rows) {
 			if (err) return cb(err);
 
 			if (rows.length === 0) {
 				const	err	= new Error('Could not find database row of newly saved image uuid: "' + data.uuid + '"');
-				log.error('larvitimages: saveImage() - ' + err.message);
+				log.error(logPrefix + '' + err.message);
 				return cb(err);
 			}
 
 			clearCache({'slug': rows[0].slug}, cb);
+		});
+	});
+
+	// Remove temporary file
+	tasks.push(function (cb) {
+		if (tmpFilePath === undefined) return cb();
+
+		fs.unlink(tmpFilePath, function (err) {
+			if (err) {
+				log.warn(logPrefix + 'Could not remove tmpFilePath "' + tmpFilePath + '", err: ' + err.message);
+			}
+
+			cb(err);
 		});
 	});
 
@@ -766,6 +829,7 @@ function saveImage(data, cb) {
 		// Re-read this entry from the database to be sure to get the right deal!
 		getImages({'uuids': data.uuid}, function (err, images) {
 			if (err) return cb(err);
+
 			cb(null, images[Object.keys(images)[0]]);
 		});
 	});

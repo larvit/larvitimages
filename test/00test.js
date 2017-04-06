@@ -1,12 +1,17 @@
 'use strict';
 
 const	bufferEqual	= require('buffer-equal'),
+	tmpFolder	= require('os').tmpdir() + '/larvitimages_test',
+	uuidLib	= require('uuid'),
+	rimraf	= require('rimraf'),
+	mkdirp	= require('mkdirp'),
 	lUtils	= require('larvitutils'),
 	assert	= require('assert'),
 	async	= require('async'),
-	lwip	= require('lwip'),
+	jimp	= require('jimp'),
 	log	= require('winston'),
 	db	= require('larvitdb'),
+	os	= require('os'),
 	fs	= require('fs-extra');
 
 let	img;
@@ -14,16 +19,15 @@ let	img;
 // Set up winston
 log.remove(log.transports.Console);
 /** /log.add(log.transports.Console, {
-	'level':	'debug',
+	'level':	'info',
 	'colorize':	true,
 	'timestamp':	true,
 	'json':	false
 });/**/
 
-// let image = images[Object.keys(images)[0]];
-
 before(function (done) {
 	const	tasks	= [];
+
 	// Run DB Setup
 	tasks.push(function (cb) {
 		let confFile;
@@ -69,6 +73,12 @@ before(function (done) {
 		});
 	});
 
+	// Create tmp folder
+	tasks.push(function (cb) {
+		mkdirp(tmpFolder, cb);
+	});
+
+	// Initiate image object
 	tasks.push(function (cb) {
 		img	= require(__dirname + '/../img.js');
 		cb();
@@ -82,15 +92,17 @@ describe('LarvitImages', function () {
 	it('should save an image in database', function (done) {
 		const	tasks	= [];
 
-		let saveObj = { 'file': { 'name': 'testimage1.jpg' } };
+		let	saveObj	= { 'file': { 'name': 'testimage1.jpg' } };
 
 		// Create testimage
 		tasks.push(function (cb) {
-			lwip.create(1000, 1000, 'red', function (err, image){
+			new jimp(256, 256, 0xFF0000FF, function (err, image) {
 				if (err) throw err;
-				image.toBuffer('jpg', {'quality': 100}, function (err, image) {
+
+				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = image;
+					saveObj.file.bin = result;
+
 					cb();
 				});
 			});
@@ -101,6 +113,7 @@ describe('LarvitImages', function () {
 			img.saveImage(saveObj, function (err, image) {
 				if (err) throw err;
 				saveObj.uuid = image.uuid;
+
 				cb();
 			});
 		});
@@ -108,14 +121,14 @@ describe('LarvitImages', function () {
 		// Get saved image
 		tasks.push(function (cb) {
 			const options = {
-				'uuids': [saveObj.uuid],
+				'uuids':	[saveObj.uuid],
 				'includeBinaryData':	true
 			};
 			img.getImages(options, function (err, images) {
 				if (err) throw err;
 				let image = images[Object.keys(images)[0]];
 				assert(bufferEqual(image.image, saveObj.file.bin));
-				assert.deepEqual(saveObj.file.name, image.slug);
+				assert.strictEqual(saveObj.file.name, image.slug);
 				cb();
 			});
 		});
@@ -148,11 +161,12 @@ describe('LarvitImages', function () {
 
 		// Create testimage
 		tasks.push(function (cb) {
-			lwip.create(1000, 1000, 'red', function (err, image){
+			new jimp(256, 256, 0xFF0000FF, function (err, image) {
 				if (err) throw err;
-				image.toBuffer('jpg', {'quality': 100}, function (err, image) {
+
+				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = image;
+					saveObj.file.bin = result;
 					cb();
 				});
 			});
@@ -170,14 +184,14 @@ describe('LarvitImages', function () {
 		// Get saved image
 		tasks.push(function (cb) {
 			const options = {
-				'uuids': [saveObj.uuid],
+				'uuids':	[saveObj.uuid],
 				'includeBinaryData':	true
 			};
 			img.getImages(options, function (err, images) {
 				if (err) throw err;
 				let image = images[Object.keys(images)[0]];
 				assert(bufferEqual(image.image, saveObj.file.bin));
-				assert.deepEqual(saveObj.file.name, image.slug);
+				assert.strictEqual(saveObj.file.name, image.slug);
 				assert.deepEqual(saveObj.metadata[0], image.metadata[0]);
 				assert.deepEqual(saveObj.metadata[1], image.metadata[1]);
 				cb();
@@ -197,11 +211,12 @@ describe('LarvitImages', function () {
 
 		// Create testimage
 		tasks.push(function (cb) {
-			lwip.create(1000, 1000, 'yellow', function (err, image){
+			new jimp(256, 256, 0xFF0000FF, function (err, image) {
 				if (err) throw err;
-				image.toBuffer('jpg', {'quality': 100}, function (err, image) {
+
+				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = image;
+					saveObj.file.bin = result;
 					cb();
 				});
 			});
@@ -224,12 +239,12 @@ describe('LarvitImages', function () {
 		// Get saved image to see if it's gone
 		tasks.push(function (cb) {
 			const options = {
-				'uuids': [saveObj.uuid],
+				'uuids':	[saveObj.uuid],
 				'includeBinaryData':	true
 			};
 			img.getImages(options, function (err, images) {
 				if (err) throw err;
-				assert.deepEqual(Object.keys(images).length, 0);
+				assert.strictEqual(Object.keys(images).length, 0);
 				cb();
 			});
 		});
@@ -244,15 +259,16 @@ describe('LarvitImages', function () {
 	it('should get image by uuid', function (done) {
 		const	tasks	= [];
 
-		let saveObj = { 'file': { 'name': 'testimage3.jpg' } };
+		let	saveObj	= { 'file': { 'name': 'testimage3.jpg' } };
 
 		// Create testimage
 		tasks.push(function (cb) {
-			lwip.create(1000, 1000, 'green', function (err, image){
+			new jimp(256, 256, 0xFF0000FF, function (err, image) {
 				if (err) throw err;
-				image.toBuffer('jpg', {'quality': 100}, function (err, image) {
+
+				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = image;
+					saveObj.file.bin = result;
 					cb();
 				});
 			});
@@ -262,7 +278,7 @@ describe('LarvitImages', function () {
 		tasks.push(function (cb) {
 			img.saveImage(saveObj, function (err, image) {
 				if (err) throw err;
-				saveObj.uuid = image.uuid;
+				saveObj.uuid	= image.uuid;
 				cb();
 			});
 		});
@@ -270,14 +286,17 @@ describe('LarvitImages', function () {
 		// Get saved image
 		tasks.push(function (cb) {
 			const options = {
-				'uuids': [saveObj.uuid],
+				'uuids':	[saveObj.uuid],
 				'includeBinaryData':	true
 			};
 			img.getImages(options, function (err, images) {
+				let	image;
+
 				if (err) throw err;
-				let image = images[Object.keys(images)[0]];
+
+				image	= images[Object.keys(images)[0]];
 				assert(bufferEqual(saveObj.file.bin, image.image));
-				assert.deepEqual(saveObj.file.name, image.slug);
+				assert.strictEqual(saveObj.file.name, image.slug);
 				cb();
 			});
 		});
@@ -295,11 +314,12 @@ describe('LarvitImages', function () {
 
 		// Create testimage
 		tasks.push(function (cb) {
-			lwip.create(1000, 1000, 'blue', function (err, image){
+			new jimp(256, 256, 0xFF0000FF, function (err, image) {
 				if (err) throw err;
-				image.toBuffer('jpg', {'quality': 100}, function (err, image) {
+
+				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = image;
+					saveObj.file.bin	= result;
 					cb();
 				});
 			});
@@ -309,7 +329,7 @@ describe('LarvitImages', function () {
 		tasks.push(function (cb) {
 			img.saveImage(saveObj, function (err, image) {
 				if (err) throw err;
-				saveObj.uuid = image.uuid;
+				saveObj.uuid	= image.uuid;
 				cb();
 			});
 		});
@@ -317,14 +337,14 @@ describe('LarvitImages', function () {
 		// Get saved image
 		tasks.push(function (cb) {
 			const options = {
-				'slugs': [saveObj.file.name],
+				'slugs':	[saveObj.file.name],
 				'includeBinaryData':	true
 			};
 			img.getImages(options, function (err, images) {
 				if (err) throw err;
 				let image = images[Object.keys(images)[0]];
 				assert(bufferEqual(image.image, saveObj.file.bin));
-				assert.deepEqual(saveObj.file.name, image.slug);
+				assert.strictEqual(saveObj.file.name, image.slug);
 				cb();
 			});
 		});
@@ -342,11 +362,12 @@ describe('LarvitImages', function () {
 
 		// Create testimage
 		tasks.push(function (cb) {
-			lwip.create(1000, 1000, 'black', function (err, image){
+			new jimp(256, 256, 0xFF0000FF, function (err, image) {
 				if (err) throw err;
-				image.toBuffer('jpg', {'quality': 100}, function (err, image) {
+
+				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = image;
+					saveObj.file.bin = result;
 					cb();
 				});
 			});
@@ -380,17 +401,20 @@ describe('LarvitImages', function () {
 	});
 
 	it('should get only binary by slug with custom height', function (done) {
-		const	tasks	= [];
+		const	tmpFileName	= os.tmpdir() + '/' + uuidLib.v1() + '.jpg',
+			options	= {},
+			tasks	= [];
 
 		let saveObj = { 'file': { 'name': 'testimage6.jpg' } };
 
 		// Create testimage
 		tasks.push(function (cb) {
-			lwip.create(1000, 1000, 'black', function (err, image){
+			new jimp(256, 256, 0xFF0000FF, function (err, image) {
 				if (err) throw err;
-				image.toBuffer('jpg', {'quality': 100}, function (err, image) {
+
+				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = image;
+					saveObj.file.bin = result;
 					cb();
 				});
 			});
@@ -405,20 +429,37 @@ describe('LarvitImages', function () {
 			});
 		});
 
-		// Get saved image
+		// Get saved image bin
 		tasks.push(function (cb) {
-			const options = {
-				'slug': saveObj.file.name,
-				'height': 500
-			};
+			options.slug	= saveObj.file.name;
+			options.height	= 500;
 
 			img.getImageBin(options, function (err, image) {
 				if (err) throw err;
-				lwip.open(image, 'jpg', function (err, image){
-					assert.deepEqual(options.height, image.height());
-					assert.deepEqual(options.height, image.width());
+
+				fs.writeFile(tmpFileName, image, function (err) {
+					if (err) throw err;
+					cb(err);
 				});
-				cb();
+			});
+		});
+
+		// Open tmp file and check
+		tasks.push(function (cb) {
+			jimp.read(tmpFileName, function (err, image) {
+				if (err) throw err;
+
+				assert.strictEqual(options.height, image.bitmap.height);
+				assert.strictEqual(options.height, image.bitmap.width);
+				cb(err);
+			});
+		});
+
+		// Delete tmp file
+		tasks.push(function (cb) {
+			fs.unlink(tmpFileName, function (err) {
+				if (err) throw err;
+				cb(err);
 			});
 		});
 
@@ -429,17 +470,20 @@ describe('LarvitImages', function () {
 	});
 
 	it('should get only binary by slug with custom width', function (done) {
-		const	tasks	= [];
+		const	tmpFileName	= os.tmpdir() + '/' + uuidLib.v1() + '.jpg',
+			options	= {},
+			tasks	= [];
 
-		let saveObj = { 'file': { 'name': 'testimage7.jpg' } };
+		let	saveObj	= { 'file': { 'name': 'testimage7.jpg' } };
 
 		// Create testimage
 		tasks.push(function (cb) {
-			lwip.create(1000, 1000, 'black', function (err, image){
+			new jimp(256, 256, 0xFF0000FF, function (err, image) {
 				if (err) throw err;
-				image.toBuffer('jpg', {'quality': 100}, function (err, image) {
+
+				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = image;
+					saveObj.file.bin = result;
 					cb();
 				});
 			});
@@ -454,20 +498,37 @@ describe('LarvitImages', function () {
 			});
 		});
 
-		// Get saved image
+		// Get saved image binary and write to tmp file
 		tasks.push(function (cb) {
-			const options = {
-				'slug': saveObj.file.name,
-				'width': 500
-			};
+			options.slug	= saveObj.file.name;
+			options.width	= 500;
 
 			img.getImageBin(options, function (err, image) {
 				if (err) throw err;
-				lwip.open(image, 'jpg', function (err, image){
-					assert.deepEqual(options.width, image.width());
-					assert.deepEqual(options.width, image.height());
+
+				fs.writeFile(tmpFileName, image, function (err) {
+					if (err) throw err;
+					cb(err);
 				});
-				cb();
+			});
+		});
+
+		// Open tmp file and check
+		tasks.push(function (cb) {
+			jimp.read(tmpFileName, function (err, image) {
+				if (err) throw err;
+
+				assert.strictEqual(options.width, image.bitmap.height);
+				assert.strictEqual(options.width, image.bitmap.width);
+				cb(err);
+			});
+		});
+
+		// Delete tmp file
+		tasks.push(function (cb) {
+			fs.unlink(tmpFileName, function (err) {
+				if (err) throw err;
+				cb(err);
 			});
 		});
 
@@ -478,17 +539,20 @@ describe('LarvitImages', function () {
 	});
 
 	it('should get only binary by slug with custom height and width', function (done) {
-		const	tasks	= [];
+		const	tmpFileName	= os.tmpdir() + '/' + uuidLib.v1() + '.jpg',
+			options	= {},
+			tasks	= [];
 
-		let saveObj = { 'file': { 'name': 'testimage8.jpg' } };
+		let	saveObj	= { 'file': { 'name': 'testimage8.jpg' } };
 
 		// Create testimage
 		tasks.push(function (cb) {
-			lwip.create(1000, 1000, 'black', function (err, image){
+			new jimp(256, 256, 0xFF0000FF, function (err, image) {
 				if (err) throw err;
-				image.toBuffer('jpg', {'quality': 100}, function (err, image) {
+
+				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = image;
+					saveObj.file.bin = result;
 					cb();
 				});
 			});
@@ -503,22 +567,38 @@ describe('LarvitImages', function () {
 			});
 		});
 
-		// Get saved image
+		// Get saved image binary and write to tmp file
 		tasks.push(function (cb) {
-			const options = {
-				'slug': saveObj.file.name,
-				'width': 500,
-				'height':750
-			};
+			options.slug	= saveObj.file.name;
+			options.width	= 500;
+			options.height	= 750;
 
 			img.getImageBin(options, function (err, image) {
 				if (err) throw err;
-				lwip.open(image, 'jpg', function (err, image){
 
-					assert.deepEqual(options.width, image.width());
-					assert.deepEqual(options.height, image.height());
+				fs.writeFile(tmpFileName, image, function (err) {
+					if (err) throw err;
+					cb(err);
 				});
-				cb();
+			});
+		});
+
+		// Open tmp file and check
+		tasks.push(function (cb) {
+			jimp.read(tmpFileName, function (err, image) {
+				if (err) throw err;
+
+				assert.strictEqual(options.width, image.bitmap.width);
+				assert.strictEqual(options.height, image.bitmap.height);
+				cb(err);
+			});
+		});
+
+		// Delete tmp file
+		tasks.push(function (cb) {
+			fs.unlink(tmpFileName, function (err) {
+				if (err) throw err;
+				cb(err);
 			});
 		});
 
@@ -529,17 +609,20 @@ describe('LarvitImages', function () {
 	});
 
 	it('should clear cached image based on slug', function (done) {
-		const	tasks	= [];
+		const	tmpFileName	= os.tmpdir() + '/' + uuidLib.v1() + '.jpg',
+			options	= {},
+			tasks	= [];
 
 		let saveObj = { 'file': { 'name': 'testimage9.jpg' } };
 
 		// Create testimage
 		tasks.push(function (cb) {
-			lwip.create(1000, 1000, 'black', function (err, image){
+			new jimp(256, 256, 0xFF0000FF, function (err, image) {
 				if (err) throw err;
-				image.toBuffer('jpg', {'quality': 100}, function (err, image) {
+
+				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = image;
+					saveObj.file.bin = result;
 					cb();
 				});
 			});
@@ -556,19 +639,28 @@ describe('LarvitImages', function () {
 
 		// Get saved image
 		tasks.push(function (cb) {
-			const options = {
-				'slug': saveObj.file.name,
-				'width': 400,
-				'height':400
-			};
+			options.slug	= saveObj.file.name;
+			options.width	= 400;
+			options.height	= 400;
 
 			img.getImageBin(options, function (err, image) {
 				if (err) throw err;
-				lwip.open(image, 'jpg', function (err, image){
-					assert.deepEqual(options.width, image.width());
-					assert.deepEqual(options.height, image.height());
+
+				fs.writeFile(tmpFileName, image, function (err) {
+					if (err) throw err;
+					cb(err);
 				});
-				cb();
+			});
+		});
+
+		// Open tmp file and check
+		tasks.push(function (cb) {
+			jimp.read(tmpFileName, function (err, image) {
+				if (err) throw err;
+
+				assert.strictEqual(options.width, image.bitmap.width);
+				assert.strictEqual(options.height, image.bitmap.height);
+				cb(err);
 			});
 		});
 
@@ -586,7 +678,7 @@ describe('LarvitImages', function () {
 		// Check if cached image is deleted
 		tasks.push(function (cb) {
 			const	uuid = lUtils.formatUuid(saveObj.uuid),
-				path = img.cacheDir + uuid.substr(0, 4).split('').join('/') + '/' + uuid + '_w400_h400.jpg';
+				path = img.cacheDir + '/' + uuid.substr(0, 4).split('').join('/') + '/' + uuid + '_w400_h400.jpg';
 
 			fs.stat(path, function (err) {
 				assert(err);
@@ -599,9 +691,22 @@ describe('LarvitImages', function () {
 			done();
 		});
 	});
-
 });
 
 after(function (done) {
-	db.removeAllTables(done);
+	const	tasks	= [];
+
+	tasks.push(function (cb) {
+		db.removeAllTables(cb);
+	});
+
+	tasks.push(function (cb) {
+		rimraf(tmpFolder, cb);
+	});
+
+	tasks.push(function (cb) {
+		rimraf(__dirname + '/../larvitimages', cb);
+	});
+
+	async.parallel(tasks, done);
 });

@@ -1,4 +1,4 @@
 {
-	"storagePath": "/path/to/storage/",
-	"cachePath": "/path/to/cache/"
+	"storagePath":	"/path/to/storage/",
+	"cachePath":	"/path/to/cache/"
 }
