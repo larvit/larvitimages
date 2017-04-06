@@ -7,7 +7,7 @@
 	<fieldset>
 		<legend>Identity</legend>
 
-		<% if (global.urlParsed.query.id) { %>
+		<% if (global.urlParsed.query.uuid) { %>
 		<div class="row">
 			<img src="/uploaded/images/<%= global.formFields.slug %>?height=200" alt="" />
 			<p>Path: /uploaded/images/<%= global.formFields.slug %></p>
@@ -16,8 +16,8 @@
 
 		<div class="row">
 			<div class="three columns">
-				<label for="id">Id</label>
-				<input type="text" value="<%= global.urlParsed.query.id %>" disabled="disabled" />
+				<label for="uuid">Uuid</label>
+				<input type="text" value="<%= global.urlParsed.query.uuid %>" disabled="disabled" />
 			</div>
 
 			<div class="three columns">

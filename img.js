@@ -228,7 +228,7 @@ function createTablesIfNotExists(cb) {
 
 	// Create metadata table
 	tasks.push(function (cb) {
-		const	sql	= 'CREATE TABLE `images_images_metadata` (`imageUuid` binary(16) NOT NULL,`name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,`data` varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL, KEY `imageUuid` (`imageUuid`), CONSTRAINT `images_images_metadata_ibfk_1` FOREIGN KEY (`imageUuid`) REFERENCES `images_images` (`uuid`) ON DELETE NO ACTION) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
+		const	sql	= 'CREATE TABLE IF NOT EXISTS `images_images_metadata` (`imageUuid` binary(16) NOT NULL,`name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,`data` varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL, KEY `imageUuid` (`imageUuid`), CONSTRAINT `images_images_metadata_ibfk_1` FOREIGN KEY (`imageUuid`) REFERENCES `images_images` (`uuid`) ON DELETE NO ACTION) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
 		db.query(sql, cb);
 	});
 
@@ -237,7 +237,6 @@ function createTablesIfNotExists(cb) {
 		dbChecked = true;
 		eventEmitter.emit('checked');
 	});
-
 }
 createTablesIfNotExists(function (err) {
 	log.error('larvitimages: createTablesIfNotExists() - Database error: ' + err.message);
@@ -301,6 +300,7 @@ function getImageBin(options, cb) {
 
 				if (err) {
 					log.warn(locLogPrefix + 'Could not read file "' + originalFile + '", err: ' + err.message);
+					console.log(err);
 					return cb(err);
 				}
 
@@ -329,7 +329,7 @@ function getImageBin(options, cb) {
 					return cb(err);
 				}
 
-				image.resize(options.width, options.height, function (err, image) {
+				image.resize(Number(options.width), Number(options.height), function (err, image) {
 					if (err) {
 						log.warn(locLogPrefix + 'Could not resize image, err: ' + err.message);
 						return cb(err);
@@ -637,8 +637,8 @@ function saveImage(data, cb) {
 			// Read binary data if it is not read already
 
 			tasks.push(function (cb) {
-				fs.readFile(data.file.path, function (err, data) {
-					data.file.bin	= data;
+				fs.readFile(data.file.path, function (err, result) {
+					data.file.bin	= result;
 					cb(err);
 				});
 			});

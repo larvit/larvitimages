@@ -34,8 +34,8 @@ Configuring the paths to directories the image will be stored.
 
 ```json
 {
-	"storagePath": "/path/to/storage/",	// This is mandatory
-	"cachePath": "/path/to/cache/"	// Optional, default is /tmp/larvitimages_cache
+	"storagePath": "/path/to/storage/",	// Optional, default is process.cwd() + '/larvitimages'
+	"cachePath": "/path/to/cache/"	// Optional, default is require('os').tmpdir() + '/larvitimages_cache'
 }
 ```
 
@@ -62,7 +62,7 @@ img.saveImage(saveObj, function(err, image) {
 #### Get image by uuid
 ```javascript
 const options = {
-	'uuids': ['f997a1a8-272c-4817-885c-981ad78b9700'],
+	'uuids':	['f997a1a8-272c-4817-885c-981ad78b9700'],
 	'includeBinaryData':	true // If false or undefined only image data will be fetched.
 };
 
