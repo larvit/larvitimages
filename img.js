@@ -2,10 +2,11 @@
 
 const	topLogPrefix	= 'larvitimages: ./img.js - ',
 	uuidValidate	= require('uuid-validate'),
+	dataWriter	= require(__dirname + '/dataWriter.js'),
 	imageType	= require('image-type'),
+	intercom	= require('larvitutils').instances.intercom,
 	uuidLib	= require('uuid'),
 	slugify	= require('slugify'),
-	events	= require('events'),
 	mkdirp	= require('mkdirp'),
 	lUtils	= require('larvitutils'),
 	async	= require('async'),
@@ -17,9 +18,7 @@ const	topLogPrefix	= 'larvitimages: ./img.js - ',
 	db	= require('larvitdb'),
 	_	= require('lodash');
 
-let	eventEmitter	= new events.EventEmitter(),
-	dbChecked	= false,
-	config;
+let	config;
 
 if (fs.existsSync(__dirname + '/config/images.json')) {
 	config	= require(__dirname + '/config/images.json');
@@ -216,32 +215,6 @@ function clearCache(options, cb) {
 	async.series(tasks, cb);
 }
 
-// Create database tables if they are missing
-function createTablesIfNotExists(cb) {
-	const tasks = [];
-
-	// Create Image table
-	tasks.push(function (cb) {
-		const	sql	= 'CREATE TABLE IF NOT EXISTS `images_images` (`uuid` binary(16) NOT NULL, `slug` varchar(255) CHARACTER SET ascii NOT NULL, `type` varchar(255) CHARACTER SET ascii NOT NULL, PRIMARY KEY (`uuid`), UNIQUE KEY `slug` (`slug`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
-		db.query(sql, cb);
-	});
-
-	// Create metadata table
-	tasks.push(function (cb) {
-		const	sql	= 'CREATE TABLE IF NOT EXISTS `images_images_metadata` (`imageUuid` binary(16) NOT NULL,`name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,`data` varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL, KEY `imageUuid` (`imageUuid`), CONSTRAINT `images_images_metadata_ibfk_1` FOREIGN KEY (`imageUuid`) REFERENCES `images_images` (`uuid`) ON DELETE NO ACTION) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
-		db.query(sql, cb);
-	});
-
-	async.parallel(tasks, function (err) {
-		if (err) return cb(err);
-		dbChecked = true;
-		eventEmitter.emit('checked');
-	});
-}
-createTablesIfNotExists(function (err) {
-	log.error('larvitimages: createTablesIfNotExists() - Database error: ' + err.message);
-});
-
 function getImageBin(options, cb) {
 	const	logPrefix	= topLogPrefix + 'getImageBin() - ';
 
@@ -377,7 +350,8 @@ function getImageBin(options, cb) {
  * @param func cb - callback(err, images)
  */
 function getImages(options, cb) {
-	const	dbFields	= [],
+	const	logPrefix	= topLogPrefix + 'getImages() - ',
+		dbFields	= [],
 		metadata	= [],
 		images	= {},
 		tasks	= [];
@@ -423,18 +397,7 @@ function getImages(options, cb) {
 		}
 	}
 
-	// Make sure the database tables exists before going further!
-	if ( ! dbChecked) {
-		log.debug('larvitimages: getImages() - Database not checked, rerunning this method when event have been emitted.');
-		eventEmitter.on('checked', function () {
-			log.debug('larvitimages: getImages() - Database check event received, rerunning getImages().');
-			getImages(options, cb);
-		});
-
-		return;
-	}
-
-	log.debug('larvitimages: getImages() - Called with options: "' + JSON.stringify(options) + '"');
+	log.debug(logPrefix + 'Called with options: "' + JSON.stringify(options) + '"');
 
 	function generateWhere() {
 		let sql = '';
@@ -475,6 +438,10 @@ function getImages(options, cb) {
 
 		return sql;
 	}
+
+	tasks.push(function (cb) {
+		dataWriter.ready(cb);
+	});
 
 	// Get images
 	tasks.push(function (cb) {
@@ -558,6 +525,10 @@ function rmImage(uuid, cb) {
 	let	slug,
 		type;
 
+	tasks.push(function (cb) {
+		dataWriter.ready(cb);
+	});
+
 	// Get slug
 	tasks.push(function (cb) {
 		db.query('SELECT * FROM images_images WHERE uuid = ?', [lUtils.uuidToBuffer(uuid)], function (err, rows) {
@@ -572,26 +543,34 @@ function rmImage(uuid, cb) {
 		});
 	});
 
-	// Delete database entry
+	// Delete data through queue
 	tasks.push(function (cb) {
-		db.query('DELETE FROM images_images WHERE uuid = ?', [lUtils.uuidToBuffer(uuid)], cb);
+		const	options	= {'exchange': dataWriter.exchangeName},
+			message	= {};
+
+		message.action	= 'rmImage';
+		message.params	= {};
+		message.params.uuid	= uuid;
+
+		intercom.send(message, options, function (err, msgUuid) {
+			if (err) { cb(err); return; }
+
+			dataWriter.emitter.once(msgUuid, cb);
+		});
 	});
 
-	// Delete metadata
-	tasks.push(function (cb) {
-		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', [lUtils.uuidToBuffer(uuid)], cb);
-	});
+	if (dataWriter.mode !== 'slave') {
+		// Delete actual file
+		tasks.push(function (cb) {
+			fs.unlink(getPathToImage(uuid) + uuid + '.' + type, cb);
+		});
 
-	// Delete actual file
-	tasks.push(function (cb) {
-		fs.unlink(getPathToImage(uuid) + uuid + '.' + type, cb);
-	});
+		tasks.push(function (cb) {
+			if ( ! slug) return cb();
 
-	tasks.push(function (cb) {
-		if ( ! slug) return cb();
-
-		clearCache({'slug': slug}, cb);
-	});
+			clearCache({'slug': slug}, cb);
+		});
+	}
 
 	async.series(tasks, cb);
 }
@@ -614,22 +593,15 @@ function saveImage(data, cb) {
 
 	log.verbose(logPrefix + 'Running with data. "' + JSON.stringify(data) + '"');
 
-	// Make sure the database tables exists before going further!
-	if ( ! dbChecked) {
-		log.debug(logPrefix + 'Database not checked, rerunning this method when event have been emitted.');
-		eventEmitter.on('checked', function () {
-			log.debug(logPrefix + 'Database check event received, rerunning saveImage().');
-			exports.saveImage(data, cb);
-		});
-
-		return;
-	}
-
 	// If id is missing, we MUST have a file
 	if (data.uuid === undefined && data.file === undefined) {
 		log.info(logPrefix + 'Upload file is missing, but required since no ID is supplied.');
 		return cb(new Error('Image file is required'));
 	}
+
+	tasks.push(function (cb) {
+		dataWriter.ready(cb);
+	});
 
 	// If we have an image file, make sure the format is correct
 	if (data.file !== undefined) {
@@ -699,7 +671,7 @@ function saveImage(data, cb) {
 	tasks.push(function (cb) {
 		const	dbFields	= [];
 
-		let sql;
+		let	sql;
 
 		// If no slug or uuid was supplied use the filename as base for the slug
 		if ( ! data.uuid && ! data.slug) {
@@ -734,21 +706,26 @@ function saveImage(data, cb) {
 		});
 	});
 
-	// Create a new image if id is not set
-	if (data.uuid === undefined) {
-		tasks.push(function (cb) {
-			data.uuid = uuidLib.v4();
+	// Save database data through queue
+	tasks.push(function (cb) {
+		const	options	= {'exchange': dataWriter.exchangeName},
+			message	= {};
 
-			const	sql	= 'INSERT INTO images_images (uuid, slug, type) VALUES(?, ?, ?);',
-				dbFields	= [lUtils.uuidToBuffer(data.uuid), data.slug, data.file.type];
+		message.action	= 'saveImage';
+		message.params	= {};
 
-			db.query(sql, dbFields, function (err) {
-				if (err) return cb(err);
-				log.debug(logPrefix + 'New image created with uuid: "' + data.uuid + '"');
-				cb();
-			});
+		if (data.uuid === undefined) {
+			data.uuid	= uuidLib.v4();
+		}
+
+		message.params.data = data;
+
+		intercom.send(message, options, function (err, msgUuid) {
+			if (err) { cb(err); return; }
+
+			dataWriter.emitter.once(msgUuid, cb);
 		});
-	}
+	});
 
 	// Save file data
 	if (data.file) {
@@ -760,37 +737,6 @@ function saveImage(data, cb) {
 					cb();
 				});
 			});
-		});
-	}
-
-	// Save the slug
-	if (data.slug) {
-		tasks.push(function (cb) {
-			db.query('UPDATE images_images SET slug = ? WHERE uuid = ?', [data.slug, lUtils.uuidToBuffer(data.uuid)], cb);
-		});
-	}
-
-	// Save metadata
-	// First delete all existing metadata about this image
-	tasks.push(function (cb) {
-		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', [lUtils.uuidToBuffer(data.uuid)], cb);
-	});
-
-	// Insert new metadata
-	if (data.metadata !== undefined) {
-		tasks.push(function (cb) {
-			const	dbFields	= [];
-			let	sql	= 'INSERT INTO images_images_metadata (imageUuid, name, data) VALUES ';
-
-			for (let i = 0; data.metadata[i] !== undefined; i ++) {
-				sql += '(?,?,?), ';
-				dbFields.push(lUtils.uuidToBuffer(data.uuid));
-				dbFields.push(data.metadata[i].name);
-				dbFields.push(data.metadata[i].data);
-			}
-
-			sql = sql.substring(0, sql.length - 2) + ';';
-			db.query(sql, dbFields, cb);
 		});
 	}
 
@@ -836,8 +782,9 @@ function saveImage(data, cb) {
 };
 
 exports.clearCache	= clearCache;
-exports.getPathToImage	= getPathToImage;
+exports.dataWriter	= dataWriter;
 exports.getImageBin	= getImageBin;
 exports.getImages	= getImages;
+exports.getPathToImage	= getPathToImage;
 exports.rmImage	= rmImage;
 exports.saveImage	= saveImage;
