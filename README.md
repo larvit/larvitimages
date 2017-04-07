@@ -21,6 +21,7 @@ To rescale regardless of aspect ratio: http://something.com/uploaded/images/test
 ## Configuration
 
 ##### LarvitBase
+
 To be able to load the images in the browser, add this to larvitbase config:
 ```javascript
 serverConf.customRoutes = [{
@@ -30,6 +31,7 @@ serverConf.customRoutes = [{
 ```
 
 #### Paths
+
 Configuring the paths to directories the image will be stored.
 
 ```json
@@ -42,6 +44,7 @@ Configuring the paths to directories the image will be stored.
 ## Usage
 
 #### Save image
+
 ```javascript
 const imgLib = require('larvitimages'),
 			image = {
@@ -49,6 +52,16 @@ const imgLib = require('larvitimages'),
 				'file': {
 					'bin': imageBuffer
 				}
+				'metadata': [
+					{
+						'name': 'deer',
+						'data': 'tasty'
+					},
+					{
+						'name': 'frog',
+						'data': 'disgusting'
+					}
+				]
 			};
 
 img.saveImage(saveObj, function(err, image) {
@@ -58,8 +71,8 @@ img.saveImage(saveObj, function(err, image) {
 });
 ```
 
-
 #### Get image by uuid
+
 ```javascript
 const options = {
 	'uuids':	['f997a1a8-272c-4817-885c-981ad78b9700'],
@@ -74,6 +87,7 @@ img.getImages(options, function(err, image) {
 ```
 
 #### Get image by slug
+
 ```javascript
 const options = {
 	'slugs': ['Some slug'],
