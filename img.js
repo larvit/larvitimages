@@ -4,12 +4,11 @@ const	topLogPrefix	= 'larvitimages: ./img.js - ',
 	uuidValidate	= require('uuid-validate'),
 	dataWriter	= require(__dirname + '/dataWriter.js'),
 	imageType	= require('image-type'),
-	intercom	= require('larvitutils').instances.intercom,
 	uuidLib	= require('uuid'),
 	mkdirp	= require('mkdirp'),
 	lUtils	= require('larvitutils'),
 	async	= require('async'),
-	slug	= require('slug'),
+	slug	= require('larvitslugify'),
 	path	= require('path'),
 	jimp	= require('jimp'),
 	log	= require('winston'),
@@ -18,7 +17,8 @@ const	topLogPrefix	= 'larvitimages: ./img.js - ',
 	db	= require('larvitdb'),
 	_	= require('lodash');
 
-let	config;
+let	intercom,
+	config;
 
 if (fs.existsSync(__dirname + '/config/images.json')) {
 	config	= require(__dirname + '/config/images.json');
@@ -37,6 +37,10 @@ if (config.storagePath !== undefined) {
 } else {
 	exports.storagePath = process.cwd() + '/larvitimages';
 }
+
+dataWriter.ready(function () {
+	intercom	= require('larvitutils').instances.intercom;
+});
 
 /**
  * Get path to image
@@ -273,7 +277,6 @@ function getImageBin(options, cb) {
 
 				if (err) {
 					log.warn(locLogPrefix + 'Could not read file "' + originalFile + '", err: ' + err.message);
-					console.log(err);
 					return cb(err);
 				}
 
@@ -582,16 +585,16 @@ function rmImage(uuid, cb) {
  *		'uuid':	d8d2bed2-4da1-4650-968c-7acc81b62c92,
  *		'slug':	'barfoo'
  *		'file':	File obj from formidable, see https://github.com/felixge/node-formidable#formidablefile for more info
- *		'metadata':	[
- *				{
- *					'name': 'deer',
- *					'data': 'tasty'
- *				},
- *				{
- *					'name': 'frog',
- *					'data': 'disgusting'
- *				}
- *			] - Optional
+ *		'metadata': [
+ *			{
+ *				'name':	'deer',
+ *				'data':	'tasty'
+ *			},
+ *			{
+ *				'name':	'frog',
+ *				'data':	'disgusting'
+ *			}
+ *		] - Optional
  *	}
  * @param func cb(err, image) - the image will be a row from getImages()
  */
@@ -693,7 +696,11 @@ function saveImage(data, cb) {
 		if ( ! data.slug) {
 			return cb();
 		} else {
-			data.slug	= slug(data.slug, {'save': ['.', '/']});
+			const	charmap	= {};
+			Object.assign(charmap, slug.charmap);
+			charmap['.'] = '.';
+			charmap['/'] = '/';
+			data.slug	= slug(data.slug, {'charmap': charmap});
 			data.slug	= _.trim(data.slug, '/');
 		}
 
