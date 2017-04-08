@@ -571,7 +571,7 @@ function rmImage(uuid, cb) {
 		tasks.push(function (cb) {
 			if ( ! slug) return cb();
 
-			clearCache({'slug': slug}, cb);
+			clearCache({'slug': slug, 'uuid': uuid}, cb);
 		});
 	}
 

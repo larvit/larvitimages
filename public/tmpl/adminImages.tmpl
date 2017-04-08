@@ -4,7 +4,7 @@
 	<thead>
 		<tr>
 			<th></th>
-			<th>Id</th>
+			<th>Uuid</th>
 			<th>Slug</th>
 			<th>Path</th>
 		</tr>
@@ -13,7 +13,7 @@
 	<% _.each(images, function(image) { %>
 		<tr>
 			<td><img src="/uploaded/images/<%= image.slug %>?width=200" alt="" /></td>
-			<td><a href="adminImageEdit?id=<%= image.id %>"><%= image.id %></a></td>
+			<td><a href="adminImageEdit?uuid=<%= image.uuid %>"><%= image.uuid %></a></td>
 			<td><%= image.slug %></td>
 			<td>/uploaded/images/<%= image.slug %></td>
 		</tr>

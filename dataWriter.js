@@ -193,14 +193,14 @@ function rmImage(params, deliveryTag, msgUuid) {
 
 	tasks.push(ready);
 
-	// Delete database entry
-	tasks.push(function (cb) {
-		db.query('DELETE FROM images_images WHERE uuid = ?', [lUtils.uuidToBuffer(params.uuid)], cb);
-	});
-
 	// Delete metadata
 	tasks.push(function (cb) {
 		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', [lUtils.uuidToBuffer(params.uuid)], cb);
+	});
+
+	// Delete database entry
+	tasks.push(function (cb) {
+		db.query('DELETE FROM images_images WHERE uuid = ?', [lUtils.uuidToBuffer(params.uuid)], cb);
 	});
 
 	async.series(tasks, function (err) {
