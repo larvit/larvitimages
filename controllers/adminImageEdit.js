@@ -5,6 +5,20 @@ const	logPrefix	= 'larvitimages: ./controllers/adminImageEdit.js - ',
 	img	= require('larvitimages'),
 	log	= require('winston');
 
+function formatFormData(formData) {
+	if (formData && Array.isArray(formData.metadata)) {
+		formData.metadata_names	= [];
+		formData.metadata_data	= [];
+
+		for (let i = 0; formData.metadata[i] !== undefined; i ++) {
+			formData.metadata_names.push(formData.metadata[i].name);
+			formData.metadata_data.push(formData.metadata[i].data);
+		}
+
+		delete formData.metadata;
+	}
+}
+
 exports.run = function (req, res, cb) {
 	const	tasks	= [],
 		data	= {'global': res.globalData};
@@ -32,6 +46,22 @@ exports.run = function (req, res, cb) {
 			if (res.globalData.formFields.slug) {
 				log.verbose(logPrefix + 'Slug set to: "' + res.globalData.formFields.slug + '"');
 				saveObj.slug	= res.globalData.formFields.slug;
+			}
+
+			if (Array.isArray(res.globalData.formFields.metadata_names)) {
+				saveObj.metadata	= [];
+
+				for (let i = 0; res.globalData.formFields.metadata_names[i] !== undefined; i ++) {
+					const	name	= res.globalData.formFields.metadata_names[i],
+						data	= res.globalData.formFields.metadata_data[i];
+
+					if (name !== '') {
+						saveObj.metadata.push({
+							'name':	name,
+							'data':	data
+						});
+					}
+				}
 			}
 
 			img.saveImage(saveObj, function (err, image) {
@@ -72,6 +102,7 @@ exports.run = function (req, res, cb) {
 				if (err) return cb(err);
 
 				res.globalData.formFields = images[Object.keys(images)[0]];
+				formatFormData(res.globalData.formFields);
 				cb(err);
 			});
 		});
