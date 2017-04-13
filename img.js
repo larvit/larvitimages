@@ -91,6 +91,8 @@ function createImageDirectory(uuid, cache, cb) {
 
 			cb(err, path);
 		});
+	} else {
+		cb(null, path);
 	}
 }
 
