@@ -284,7 +284,7 @@ function saveImage(params, deliveryTag, msgUuid) {
 	});
 
 	// Insert new metadata
-	if (params.data.metadata !== undefined) {
+	if (params.data.metadata !== undefined && Array.isArray(params.data.metadata) && params.data.metadata.length !== 0) {
 		tasks.push(function (cb) {
 			const	dbFields	= [];
 
