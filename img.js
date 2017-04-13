@@ -698,11 +698,7 @@ function saveImage(data, cb) {
 		if ( ! data.slug) {
 			return cb();
 		} else {
-			const	charmap	= {};
-			Object.assign(charmap, slug.charmap);
-			charmap['.'] = '.';
-			charmap['/'] = '/';
-			data.slug	= slug(data.slug, {'charmap': charmap});
+			data.slug	= slug(data.slug, {'save': ['/', '.']});
 			data.slug	= _.trim(data.slug, '/');
 		}
 
