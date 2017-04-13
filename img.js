@@ -698,7 +698,7 @@ function saveImage(data, cb) {
 		if ( ! data.slug) {
 			return cb();
 		} else {
-			data.slug	= slug(data.slug, {'save': ['/', '.']});
+			data.slug	= slug(data.slug, {'save': ['/', '.', '_', '-']});
 			data.slug	= _.trim(data.slug, '/');
 		}
 
