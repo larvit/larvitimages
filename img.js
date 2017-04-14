@@ -409,8 +409,12 @@ function getImages(options, cb) {
 
 		sql +=	'WHERE 1 + 1\n';
 
-		// Only get posts with the current slugs
+		// Only get images with the current slugs
 		if (options.slugs !== undefined) {
+			if (options.slugs.length === 0) {
+				return 'WHERE 1 = 2\n';
+			}
+
 			sql += '	AND (images.slug IN (';
 
 			for (let i = 0; options.slugs[i] !== undefined; i ++) {
@@ -465,6 +469,8 @@ function getImages(options, cb) {
 		}
 
 		db.query(sql, dbFields, function (err, result) {
+			if (err) return cb(err);
+
 			for (let i = 0; result[i] !== undefined; i ++) {
 				images[lUtils.formatUuid(result[i].uuid)] 	= result[i];
 				images[lUtils.formatUuid(result[i].uuid)].uuid	= lUtils.formatUuid(result[i].uuid);
