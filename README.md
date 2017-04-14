@@ -31,11 +31,11 @@ serverConf.customRoutes = [{
 
 ### Paths
 
+This whole step is optional
+
 #### Via config file
 
 Create a configuration file in a folder called "config" in your application folder and create an image called images.json with the following content:
-
-__This whole step is optional__
 
 ```json
 {
