@@ -4,7 +4,6 @@
 
 Image resizing, admin page and database for images meta data.
 
-
 ## Fetch image from browser
 
 The given examples suggests you have an image with the slug "test.jpg" in the database.
@@ -17,12 +16,12 @@ To rescale to height 200px: http://something.com/uploaded/images/test.jpg?height
 
 To rescale regardless of aspect ratio: http://something.com/uploaded/images/test.jpg?width=200&height=200
 
-
 ## Configuration
 
-##### LarvitBase
+### LarvitBase
 
 To be able to load the images in the browser, add this to larvitbase config:
+
 ```javascript
 serverConf.customRoutes = [{
 	'regex':	'^/uploaded/images/',
@@ -30,9 +29,13 @@ serverConf.customRoutes = [{
 }];
 ```
 
-#### Paths
+### Paths
 
-Configuring the paths to directories the image will be stored.
+#### Via config file
+
+Create a configuration file in a folder called "config" in your application folder and create an image called images.json with the following content:
+
+__This whole step is optional__
 
 ```json
 {
@@ -41,9 +44,20 @@ Configuring the paths to directories the image will be stored.
 }
 ```
 
+__Important!__ the module will look in process.cwd() + '/config/images.json' for the file, so if you change your working directory before loading it will not be found.
+
+#### Via modification of the object itself
+
+```javascript
+const	imgLib	= require('larvitimages');
+
+imgLib.storagePath	= process.cwd() + '/larvitimages';	// Optional, default is process.cwd() + '/larvitimages'
+imgLib.cachePath	= require('os').tmpdir() + '/larvitimages_cache';	// Optional, default is require('os').tmpdir() + '/larvitimages_cache'
+```
+
 ## Usage
 
-#### Save image
+### Save image
 
 ```javascript
 const imgLib = require('larvitimages'),
@@ -71,7 +85,7 @@ img.saveImage(saveObj, function(err, image) {
 });
 ```
 
-#### Get image by uuid
+### Get image by uuid
 
 ```javascript
 const options = {
@@ -86,7 +100,7 @@ img.getImages(options, function(err, image) {
 });
 ```
 
-#### Get image by slug
+### Get image by slug
 
 ```javascript
 const options = {

@@ -20,8 +20,8 @@ const	topLogPrefix	= 'larvitimages: ./img.js - ',
 let	intercom,
 	config;
 
-if (fs.existsSync(__dirname + '/config/images.json')) {
-	config	= require(__dirname + '/config/images.json');
+if (fs.existsSync(process.cwd() + '/config/images.json')) {
+	config	= require(process.cwd() + '/config/images.json');
 } else {
 	config = {};
 }
