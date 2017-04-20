@@ -6,6 +6,7 @@
   },
   "private": false,
   "dependencies": {
+    "async": "^2.3.0",
     "buffer-equal": "^1.0.0",
     "fs-extra": "^2.0.0",
     "image-type": "^3.0.0",
@@ -14,12 +15,12 @@
     "larvitamsync": "^0.3.0",
     "larvitdb": "^1.2.4",
     "larvitdbmigration": "^2.0.3",
+    "larvitslugify": "^0.11.1",
     "larvitutils": "^1.1.0",
     "lodash": "^4.15.0",
     "mime-types": "^2.1.11",
     "mkdirp": "^0.5.1",
     "rimraf": "^2.6.1",
-    "larvitslugify": "^0.11.1",
     "uuid": "^3.0.1",
     "uuid-validate": "0.0.2",
     "winston": "^2.2.0"
@@ -41,7 +42,7 @@
     "url": "https://github.com/larvit/larvitimages",
     "type": "git"
   },
-  "version": "0.6.4",
+  "version": "0.6.5",
   "readmeFilename": "README.md",
   "bugs": {
     "url": "https://github.com/larvit/larvitimages/issues"

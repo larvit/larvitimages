@@ -86,7 +86,7 @@ function createImageDirectory(uuid, cache, cb) {
 			if (err) {
 				log.error(logPrefix + 'Could not create folder: "' + path + '" err: ' + err.message);
 			} else {
-				log.verbose(logPrefix + 'Folder "' + path + '" created');
+				log.debug(logPrefix + 'Folder "' + path + '" created');
 			}
 
 			cb(err, path);
@@ -95,7 +95,6 @@ function createImageDirectory(uuid, cache, cb) {
 		cb(null, path);
 	}
 }
-
 
 /**
  * Clear Cache
@@ -803,9 +802,11 @@ function saveImage(data, cb) {
 };
 
 exports.clearCache	= clearCache;
+exports.createImageDirectory	= createImageDirectory;
 exports.dataWriter	= dataWriter;
 exports.getImageBin	= getImageBin;
 exports.getImages	= getImages;
+exports.getPathToImage	= getPathToImage;
 exports.getPathToImage	= getPathToImage;
 exports.rmImage	= rmImage;
 exports.saveImage	= saveImage;
