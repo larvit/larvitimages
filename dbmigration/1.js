@@ -14,108 +14,124 @@ exports = module.exports = function (cb) {
 
 	// Fetch Image data from old table
 	tasks.push(function (cb) {
-		db.query('RENAME TABLE images_images TO images_images_old;', function (err) {
-			const	uuidsToIds	= {},
-				tasks	= [];
+		db.query('SHOW TABLES', function (err, rows) {
+			let	found	= false;
 
-			if (err) {
+			if (err) return cb(err);
+
+			for (let i = 0; rows[i] !== undefined; i ++) {
+				for (const colName of Object.keys(rows[i])) {
+					if (rows[i][colName] === 'images_images') {
+						found = true;
+					}
+				}
+			}
+
+			if (found === false) {
 				log.info(logPrefix + 'No previous table to handle migrations from');
 				return cb();
 			}
 
-			// Create a new base table
-			tasks.push(function (cb) {
-				let	sql	= '';
+			db.query('RENAME TABLE images_images TO images_images_old;', function (err) {
+				const	uuidsToIds	= {},
+					tasks	= [];
 
-				sql += 'CREATE TABLE `images_images` (\n';
-				sql += '	`uuid` binary(16) NOT NULL,\n';
-				sql += '	`slug` varchar(255) CHARACTER SET ascii NOT NULL,\n';
-				sql += '	`type` varchar(255) CHARACTER SET ascii NOT NULL,\n';
-				sql += '	PRIMARY KEY (`uuid`), UNIQUE KEY `slug` (`slug`)\n';
-				sql += ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
+				if (err) return cb(err);
 
-				db.query(sql, cb);
-			});
+				// Create a new base table
+				tasks.push(function (cb) {
+					let	sql	= '';
 
-			// Insert basic data
-			tasks.push(function (cb) {
-				db.query('SELECT id, slug FROM images_images_old', function (err, rows) {
-					const	tasks	= [];
+					sql += 'CREATE TABLE `images_images` (\n';
+					sql += '	`uuid` binary(16) NOT NULL,\n';
+					sql += '	`slug` varchar(255) CHARACTER SET ascii NOT NULL,\n';
+					sql += '	`type` varchar(255) CHARACTER SET ascii NOT NULL,\n';
+					sql += '	PRIMARY KEY (`uuid`), UNIQUE KEY `slug` (`slug`)\n';
+					sql += ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;';
 
-					if (err) return cb(err);
+					db.query(sql, cb);
+				});
 
-					for (let i = 0; rows[i] !== undefined; i ++) {
-						const	uuid	= uuidLib.v4(),
-							row	= rows[i];
+				// Insert basic data
+				tasks.push(function (cb) {
+					db.query('SELECT id, slug FROM images_images_old', function (err, rows) {
+						const	tasks	= [];
 
-						let	type;
+						if (err) return cb(err);
 
-						uuidsToIds[uuid] = row.id;
+						for (let i = 0; rows[i] !== undefined; i ++) {
+							const	uuid	= uuidLib.v4(),
+								row	= rows[i];
 
-						if	(row.slug.substring(row.slug.length - 3).toLowerCase() === 'jpg') { type = 'jpg'; }
-						else if	(row.slug.substring(row.slug.length - 3).toLowerCase() === 'png') { type = 'png'; }
-						else if	(row.slug.substring(row.slug.length - 3).toLowerCase() === 'gif') { type = 'gif'; }
-						else {
-							const	err	= new Error('No valid type found for slug: "' + row.slug + '" with id: "' + row.id + '"');
-							log.error(logPrefix + err.message);
-							return cb(err);
+							let	type;
+
+							uuidsToIds[uuid] = row.id;
+
+							if	(row.slug.substring(row.slug.length - 3).toLowerCase() === 'jpg') { type = 'jpg'; }
+							else if	(row.slug.substring(row.slug.length - 3).toLowerCase() === 'png') { type = 'png'; }
+							else if	(row.slug.substring(row.slug.length - 3).toLowerCase() === 'gif') { type = 'gif'; }
+							else {
+								const	err	= new Error('No valid type found for slug: "' + row.slug + '" with id: "' + row.id + '"');
+								log.error(logPrefix + err.message);
+								return cb(err);
+							}
+
+							tasks.push(function (cb) {
+								db.query('INSERT INTO images_images (uuid, slug, type) VALUES(?,?,?);', [lUtils.uuidToBuffer(uuid), row.slug, type], cb);
+							});
 						}
 
+						async.parallel(tasks, cb);
+					});
+				});
+
+				// Write files to disk
+				tasks.push(function (cb) {
+					const	tasks	= [];
+
+					for (const uuid of Object.keys(uuidsToIds)) {
 						tasks.push(function (cb) {
-							db.query('INSERT INTO images_images (uuid, slug, type) VALUES(?,?,?);', [lUtils.uuidToBuffer(uuid), row.slug, type], cb);
+							db.query('SELECT image FROM images_images_old WHERE id = ?', [uuidsToIds[uuid]], function (err, rows) {
+								const	imgBin	= rows[0].image;
+
+								if (err) return cb(err);
+
+								if (rows.length === 0) {
+									throw new Error('Can not find image for uuid: "' + uuid + '", id: "' + uuidsToIds[uuid] + '"');
+								}
+
+								db.query('SELECT type FROM images_images WHERE uuid = ?', [lUtils.uuidToBuffer(uuid)], function (err, rows) {
+									if (err) return cb(err);
+
+									if (rows.length === 0) {
+										throw new Error('Can not find type for uuid: "' + uuid + '"');
+									}
+
+									imgLib.createImageDirectory(uuid, function (err, path) {
+										if (err) return cb(err);
+
+										fs.writeFile(path + uuid + '.' + rows[0].type, imgBin, cb);
+									});
+								});
+							});
 						});
 					}
 
 					async.parallel(tasks, cb);
 				});
-			});
 
-			// Write files to disk
-			tasks.push(function (cb) {
-				const	tasks	= [];
+				// Drop old table
+				tasks.push(function (cb) {
+					db.query('DROP TABLE images_images_old', cb);
+				});
 
-				for (const uuid of Object.keys(uuidsToIds)) {
-					tasks.push(function (cb) {
-						db.query('SELECT image FROM images_images_old WHERE id = ?', [uuidsToIds[uuid]], function (err, rows) {
-							const	imgBin	= rows[0].image;
+				async.series(tasks, function (err) {
+					if (err) {
+						log.info(logPrefix + 'No previous table to handle');
+					}
 
-							if (err) return cb(err);
-
-							if (rows.length === 0) {
-								throw new Error('Can not find image for uuid: "' + uuid + '", id: "' + uuidsToIds[uuid] + '"');
-							}
-
-							db.query('SELECT type FROM images_images WHERE uuid = ?', [lUtils.uuidToBuffer(uuid)], function (err, rows) {
-								if (err) return cb(err);
-
-								if (rows.length === 0) {
-									throw new Error('Can not find type for uuid: "' + uuid + '"');
-								}
-
-								imgLib.createImageDirectory(uuid, function (err, path) {
-									if (err) return cb(err);
-
-									fs.writeFile(path + uuid + '.' + rows[0].type, imgBin, cb);
-								});
-							});
-						});
-					});
-				}
-
-				async.parallel(tasks, cb);
-			});
-
-			// Drop old table
-			tasks.push(function (cb) {
-				db.query('DROP TABLE images_images_old', cb);
-			});
-
-			async.series(tasks, function (err) {
-				if (err) {
-					log.info(logPrefix + 'No previous table to handle');
-				}
-
-				cb();
+					cb();
+				});
 			});
 		});
 	});

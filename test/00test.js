@@ -10,21 +10,22 @@ const	bufferEqual	= require('buffer-equal'),
 	assert	= require('assert'),
 	async	= require('async'),
 	jimp	= require('jimp'),
+	img	= require(__dirname + '/../img.js'),
 	log	= require('winston'),
 	db	= require('larvitdb'),
 	os	= require('os'),
 	fs	= require('fs-extra');
 
-let	img;
-
 // Set up winston
 log.remove(log.transports.Console);
-/** /log.add(log.transports.Console, {
-	'level':	'info',
+/**/log.add(log.transports.Console, {
+	'level':	'warn',
 	'colorize':	true,
 	'timestamp':	true,
 	'json':	false
 });/**/
+
+img.dataWriter.mode	= 'noSync';
 
 before(function (done) {
 	const	tasks	= [];
@@ -76,48 +77,13 @@ before(function (done) {
 
 	// Setup intercom
 	tasks.push(function (cb) {
-		let confFile;
-
-		if (process.env.INTCONFFILE === undefined) {
-			confFile = __dirname + '/../config/amqp_test.json';
-		} else {
-			confFile = process.env.INTCONFFILE;
-		}
-
-		log.verbose('Intercom config file: "' + confFile + '"');
-
-		// First look for absolute path
-		fs.stat(confFile, function (err) {
-			if (err) {
-
-				// Then look for this string in the config folder
-				confFile = __dirname + '/../config/' + confFile;
-				fs.stat(confFile, function (err) {
-					if (err) throw err;
-					log.verbose('Intercom config: ' + JSON.stringify(require(confFile)));
-					lUtils.instances.intercom = new Intercom(require(confFile).default);
-					lUtils.instances.intercom.on('ready', cb);
-				});
-
-				return;
-			}
-
-			log.verbose('Intercom config: ' + JSON.stringify(require(confFile)));
-			lUtils.instances.intercom = new Intercom(require(confFile).default);
-			lUtils.instances.intercom.on('ready', cb);
-		});
+		lUtils.instances.intercom = new Intercom('loopback interface');
+		lUtils.instances.intercom.on('ready', cb);
 	});
 
 	// Create tmp folder
 	tasks.push(function (cb) {
 		mkdirp(tmpFolder, cb);
-	});
-
-	// Initiate image object
-	tasks.push(function (cb) {
-		img	= require(__dirname + '/../img.js');
-		img.dataWriter.mode	= 'noSync';
-		cb();
 	});
 
 	async.series(tasks, done);
