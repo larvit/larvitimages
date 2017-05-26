@@ -656,6 +656,8 @@ function saveImage(data, cb) {
 		}
 
 		tasks.push(function (cb) {
+			const imgType = imageType(data.file.bin);
+
 			let	filePath;
 
 			if (tmpFilePath) {
@@ -665,8 +667,8 @@ function saveImage(data, cb) {
 			}
 
 			// As a first step, check the mime type, since this is already given to us
-			if (imageType(data.file.bin).mime !== 'image/png' && imageType(data.file.bin).mime !== 'image/jpeg' && imageType(data.file.bin).mime !== 'image/gif') {
-				log.info(logPrefix + 'Invalid mime type "' + data.uploadedFile.type + '" for uploaded file.');
+			if ( ! imgType || (imageType(data.file.bin).mime !== 'image/png' && imageType(data.file.bin).mime !== 'image/jpeg' && imageType(data.file.bin).mime !== 'image/gif')) {
+				log.info(logPrefix + 'Invalid mime type for uploaded file.');
 				return cb(new Error('Invalid file format, must be of image type PNG, JPEG or GIF'));
 			}
 
