@@ -740,7 +740,9 @@ function saveImage(data, cb) {
 
 			// If the image was a gif it has been changed to a png and the slug should reflect this
 			if (data.slug.endsWith('.gif') && imgType.ext === 'png') {
+				log.debug(logPrefix + 'Old slug: "' + data.slug + '"');
 				data.slug = data.slug.substring(0, data.slug.length - 3) + 'png';
+				log.debug(logPrefix + 'New slug: "' + data.slug + '"');
 			}
 		}
 
