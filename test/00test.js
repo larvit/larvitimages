@@ -693,6 +693,47 @@ describe('LarvitImages', function () {
 			done();
 		});
 	});
+
+	it('Should convert gifs to png when saved', function (done) {
+		const tasks	= [],
+			saveObj	= {
+				'file':	{ 'path': __dirname + '/flanders.gif' },
+				'slug':	'flanders.gif'
+			};
+
+		let uuid = null;
+
+		// Save test image
+		tasks.push(function (cb) {
+			img.saveImage(saveObj, function (err, image) {
+				if (err) throw err;
+
+				assert.strictEqual(image.type, 'png');
+				assert.notStrictEqual(image.uuid, undefined);
+				assert.strictEqual(image.slug, 'flanders.png');
+
+				uuid = image.uuid;
+				cb();
+			});
+		});
+
+		// Get image data
+		tasks.push(function (cb) {
+			const options = {
+				'uuid'	: uuid,
+				'width'	: 400,
+				'height'	: 400
+			};
+
+			img.getImageBin(options, function (err, data) {
+				assert.notStrictEqual(data, undefined);
+				cb(err);
+			});
+		});
+
+		async.series(tasks, done);
+
+	});
 });
 
 after(function (done) {
