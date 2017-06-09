@@ -607,12 +607,17 @@ function rmImage(uuid, cb) {
  */
 function saveImage(data, cb) {
 	const	logPrefix	= topLogPrefix + 'saveImage() - ',
-		tasks	= [];
+		tasks	= [],
+		logObject	= _.cloneDeep(data);
 
 	let	tmpFilePath,
 		imgType;
 
-	log.verbose(logPrefix + 'Running with data. "' + JSON.stringify(data) + '"');
+	if (logObject.file.bin) {
+		logObject.file.bin = 'binary data removed for logging purposes';
+	}
+
+	log.debug(logPrefix + 'Running with data. "' + JSON.stringify(logObject) + '"');
 
 	// If id is missing, we MUST have a file
 	if (data.uuid === undefined && data.file === undefined) {
