@@ -503,29 +503,36 @@ function getImages(options, cb) {
 			images[imageUuid].metadata.push(metadata[i]);
 		}
 
-		if (options.includeBinaryData) {
-			const	subtasks	= [];
+		if (err) return cb(err, images);
 
-			for (let uuid in images) {
-				subtasks.push(function (cb) {
-					const	path = getPathToImage(uuid);
+		// Get total elements for pagination
+		db.query('SELECT images.uuid, images.slug, COUNT(*) AS count FROM images_images AS images ' + generateWhere(), dbFields, function (err, result) {
+			if (err) return cb(err, images);
 
-					if (err) return cb(err);
+			if (options.includeBinaryData) {
+				const	subtasks	= [];
 
-					fs.readFile(path + uuid + '.' + images[uuid].type, function (err, image) {
+				for (let uuid in images) {
+					subtasks.push(function (cb) {
+						const	path = getPathToImage(uuid);
+
 						if (err) return cb(err);
-						images[uuid].image = image;
-						cb();
-					});
-				});
-			}
 
-			async.parallel(subtasks, function (err) {
-				cb(err, images);
-			});
-		} else {
-			cb(err, images);
-		}
+						fs.readFile(path + uuid + '.' + images[uuid].type, function (err, image) {
+							if (err) return cb(err);
+							images[uuid].image = image;
+							cb();
+						});
+					});
+				}
+
+				async.parallel(subtasks, function (err) {
+					cb(err, images, result[0].count);
+				});
+			} else {
+				cb(err, images, result[0].count);
+			}
+		});
 	});
 };
 
