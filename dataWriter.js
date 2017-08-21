@@ -46,49 +46,52 @@ function listenToQueue(retries, cb) {
 		return;
 	}
 
-	if (exports.mode === 'master') {
-		listenMethod	= 'consume';
-		options.exclusive	= true;	// It is important no other client tries to sneak
-				// out messages from us, and we want "consume"
-				// since we want the queue to persist even if this
-				// minion goes offline.
-	} else if (exports.mode === 'slave' || exports.mode === 'noSync') {
-		listenMethod = 'subscribe';
-	} else {
-		const	err	= new Error('Invalid exports.mode. Must be either "master", "slave" or "noSync", but is: "' + exports.mode + '"');
-		log.error(logPrefix + err.message);
-		return cb(err);
-	}
-
-	log.info(logPrefix + 'listenMethod: ' + listenMethod);
-
-	intercom.ready(function (err) {
-		if (err) {
-			log.error(logPrefix + 'intercom.ready() err: ' + err.message);
-			return;
+	// Make sure this is ran next tick so mode can be set
+	setImmediate(function () {
+		if (exports.mode === 'master') {
+			listenMethod	= 'consume';
+			options.exclusive	= true;	// It is important no other client tries to sneak
+					// out messages from us, and we want "consume"
+					// since we want the queue to persist even if this
+					// minion goes offline.
+		} else if (exports.mode === 'slave' || exports.mode === 'noSync') {
+			listenMethod = 'subscribe';
+		} else {
+			const	err	= new Error('Invalid exports.mode. Must be either "master", "slave" or "noSync", but is: "' + exports.mode + '"');
+			log.error(logPrefix + err.message);
+			return cb(err);
 		}
 
-		intercom[listenMethod](options, function (message, ack, deliveryTag) {
-			exports.ready(function (err) {
-				ack(err); // Ack first, if something goes wrong we log it and handle it manually
+		log.info(logPrefix + 'listenMethod: ' + listenMethod);
 
-				if (err) {
-					log.error(logPrefix + 'intercom.' + listenMethod + '() - exports.ready() returned err: ' + err.message);
-					return;
-				}
+		intercom.ready(function (err) {
+			if (err) {
+				log.error(logPrefix + 'intercom.ready() err: ' + err.message);
+				return;
+			}
 
-				if (typeof message !== 'object') {
-					log.error(logPrefix + 'intercom.' + listenMethod + '() - Invalid message received, is not an object! deliveryTag: "' + deliveryTag + '"');
-					return;
-				}
+			intercom[listenMethod](options, function (message, ack, deliveryTag) {
+				exports.ready(function (err) {
+					ack(err); // Ack first, if something goes wrong we log it and handle it manually
 
-				if (typeof exports[message.action] === 'function') {
-					exports[message.action](message.params, deliveryTag, message.uuid);
-				} else {
-					log.warn(logPrefix + 'intercom.' + listenMethod + '() - Unknown message.action received: "' + message.action + '"');
-				}
-			});
-		}, ready);
+					if (err) {
+						log.error(logPrefix + 'intercom.' + listenMethod + '() - exports.ready() returned err: ' + err.message);
+						return;
+					}
+
+					if (typeof message !== 'object') {
+						log.error(logPrefix + 'intercom.' + listenMethod + '() - Invalid message received, is not an object! deliveryTag: "' + deliveryTag + '"');
+						return;
+					}
+
+					if (typeof exports[message.action] === 'function') {
+						exports[message.action](message.params, deliveryTag, message.uuid);
+					} else {
+						log.warn(logPrefix + 'intercom.' + listenMethod + '() - Unknown message.action received: "' + message.action + '"');
+					}
+				});
+			}, ready);
+		});
 	});
 }
 // Run listenToQueue as soon as all I/O is done, this makes sure the exports.mode can be set
