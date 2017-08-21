@@ -1,6 +1,6 @@
 'use strict';
 
-const	topLogPrefix	= 'larvitimages: ./img.js - ',
+const	topLogPrefix	= 'larvitimages: img.js: ',
 	uuidValidate	= require('uuid-validate'),
 	dataWriter	= require(__dirname + '/dataWriter.js'),
 	imageType	= require('image-type'),
@@ -52,7 +52,7 @@ function getPathToImage(uuid, cache) {
 	if (cache) {
 		return exports.cacheDir + '/' + uuid.substr(0, 4).split('').join('/') + '/';
 	} else {
-		return	exports.storagePath + '/' + uuid.substr(0, 4).split('').join('/') + '/';
+		return exports.storagePath + '/' + uuid.substr(0, 4).split('').join('/') + '/';
 	}
 }
 
@@ -650,7 +650,7 @@ function saveImage(data, cb) {
 			});
 
 		} else {
-			const	err	= new Error('Either binary data or file path was given, can not save');
+			const	err	= new Error('Neither binary data or file path was given, can not save');
 			log.warn(logPrefix + err.message);
 			return cb(err);
 		}
@@ -659,7 +659,7 @@ function saveImage(data, cb) {
 			let	filePath;
 
 			if (tmpFilePath) {
-				filePath = tmpFilePath;
+				filePath	= tmpFilePath;
 			} else {
 				filePath	= data.file.path;
 			}

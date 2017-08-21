@@ -1,6 +1,6 @@
 'use strict';
 
-const	topLogPrefix	= 'larvitimages: ./dataWriter.js - ',
+const	topLogPrefix	= 'larvitimages: dataWriter.js: ',
 	EventEmitter	= require('events').EventEmitter,
 	eventEmitter	= new EventEmitter(),
 	DbMigration	= require('larvitdbmigration'),
