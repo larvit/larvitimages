@@ -1,5 +1,6 @@
 <%= _.render('inc/head', obj) %>
 <%= _.render('inc/pageTop', obj) %>
+<%= _.render('inc/pagination', obj.pagination) %>
 <table>
 	<thead>
 		<tr>
@@ -20,4 +21,5 @@
 	<% }) %>
 	</tbody>
 </table>
+<%= _.render('inc/pagination', obj.pagination) %>
 <%= _.render('inc/pageBottom', obj) %>

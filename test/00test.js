@@ -126,9 +126,10 @@ describe('LarvitImages', function () {
 				'uuids':	[saveObj.uuid],
 				'includeBinaryData':	true
 			};
-			img.getImages(options, function (err, images) {
+			img.getImages(options, function (err, images, totalElements) {
 				if (err) throw err;
 				let image = images[Object.keys(images)[0]];
+				assert.strictEqual(totalElements, 1);
 				assert(bufferEqual(image.image, saveObj.file.bin));
 				assert.strictEqual(saveObj.file.name, image.slug);
 				cb();
@@ -189,9 +190,10 @@ describe('LarvitImages', function () {
 				'uuids':	[saveObj.uuid],
 				'includeBinaryData':	true
 			};
-			img.getImages(options, function (err, images) {
+			img.getImages(options, function (err, images, totalElements) {
 				if (err) throw err;
 				let image = images[Object.keys(images)[0]];
+				assert.strictEqual(totalElements, 1);
 				assert(bufferEqual(image.image, saveObj.file.bin));
 				assert.strictEqual(saveObj.file.name, image.slug);
 				assert.deepEqual(saveObj.metadata[0], image.metadata[0]);
@@ -244,8 +246,9 @@ describe('LarvitImages', function () {
 				'uuids':	[saveObj.uuid],
 				'includeBinaryData':	true
 			};
-			img.getImages(options, function (err, images) {
+			img.getImages(options, function (err, images, totalElements) {
 				if (err) throw err;
+				assert.strictEqual(totalElements, 0);
 				assert.strictEqual(Object.keys(images).length, 0);
 				cb();
 			});
@@ -291,7 +294,7 @@ describe('LarvitImages', function () {
 				'uuids':	[saveObj.uuid],
 				'includeBinaryData':	true
 			};
-			img.getImages(options, function (err, images) {
+			img.getImages(options, function (err, images, totalElements) {
 				let	image;
 
 				if (err) throw err;
@@ -299,6 +302,7 @@ describe('LarvitImages', function () {
 				image	= images[Object.keys(images)[0]];
 				assert(bufferEqual(saveObj.file.bin, image.image));
 				assert.strictEqual(saveObj.file.name, image.slug);
+				assert.strictEqual(totalElements, 1);
 				cb();
 			});
 		});
@@ -692,6 +696,47 @@ describe('LarvitImages', function () {
 			if (err) throw err;
 			done();
 		});
+	});
+
+	it('Should convert gifs to png when saved', function (done) {
+		const tasks	= [],
+			saveObj	= {
+				'file':	{ 'path': __dirname + '/flanders.gif' },
+				'slug':	'flanders.gif'
+			};
+
+		let uuid = null;
+
+		// Save test image
+		tasks.push(function (cb) {
+			img.saveImage(saveObj, function (err, image) {
+				if (err) throw err;
+
+				assert.strictEqual(image.type, 'png');
+				assert.notStrictEqual(image.uuid, undefined);
+				assert.strictEqual(image.slug, 'flanders.png');
+
+				uuid = image.uuid;
+				cb();
+			});
+		});
+
+		// Get image data
+		tasks.push(function (cb) {
+			const options = {
+				'uuid'	: uuid,
+				'width'	: 400,
+				'height'	: 400
+			};
+
+			img.getImageBin(options, function (err, data) {
+				assert.notStrictEqual(data, undefined);
+				cb(err);
+			});
+		});
+
+		async.series(tasks, done);
+
 	});
 });
 

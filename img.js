@@ -503,29 +503,36 @@ function getImages(options, cb) {
 			images[imageUuid].metadata.push(metadata[i]);
 		}
 
-		if (options.includeBinaryData) {
-			const	subtasks	= [];
+		if (err) return cb(err, images);
 
-			for (let uuid in images) {
-				subtasks.push(function (cb) {
-					const	path = getPathToImage(uuid);
+		// Get total elements for pagination
+		db.query('SELECT images.uuid, images.slug, COUNT(*) AS count FROM images_images AS images ' + generateWhere(), dbFields, function (err, result) {
+			if (err) return cb(err, images);
 
-					if (err) return cb(err);
+			if (options.includeBinaryData) {
+				const	subtasks	= [];
 
-					fs.readFile(path + uuid + '.' + images[uuid].type, function (err, image) {
+				for (let uuid in images) {
+					subtasks.push(function (cb) {
+						const	path = getPathToImage(uuid);
+
 						if (err) return cb(err);
-						images[uuid].image = image;
-						cb();
-					});
-				});
-			}
 
-			async.parallel(subtasks, function (err) {
-				cb(err, images);
-			});
-		} else {
-			cb(err, images);
-		}
+						fs.readFile(path + uuid + '.' + images[uuid].type, function (err, image) {
+							if (err) return cb(err);
+							images[uuid].image = image;
+							cb();
+						});
+					});
+				}
+
+				async.parallel(subtasks, function (err) {
+					cb(err, images, result[0].count);
+				});
+			} else {
+				cb(err, images, result[0].count);
+			}
+		});
 	});
 };
 
@@ -607,11 +614,17 @@ function rmImage(uuid, cb) {
  */
 function saveImage(data, cb) {
 	const	logPrefix	= topLogPrefix + 'saveImage() - ',
-		tasks	= [];
+		tasks	= [],
+		logObject	= _.cloneDeep(data);
 
-	let	tmpFilePath;
+	let	tmpFilePath,
+		imgType;
 
-	log.verbose(logPrefix + 'Running with data. "' + JSON.stringify(data) + '"');
+	if (logObject.file.bin) {
+		logObject.file.bin = 'binary data removed for logging purposes';
+	}
+
+	log.debug(logPrefix + 'Running with data. "' + JSON.stringify(logObject) + '"');
 
 	// If id is missing, we MUST have a file
 	if (data.uuid === undefined && data.file === undefined) {
@@ -638,7 +651,7 @@ function saveImage(data, cb) {
 		} else if (data.file.bin && ! data.file.path) {
 			// Save bin data to temp file if no path was provided
 
-			tmpFilePath = os.tmpdir() + '/' + uuidLib.v1();
+			tmpFilePath = os.tmpdir() + '/' + uuidLib.v1()  + '.' + imageType(data.file.bin).ext;
 
 			tasks.push(function (cb) {
 				fs.writeFile(tmpFilePath, data.file.bin, function (err) {
@@ -656,7 +669,9 @@ function saveImage(data, cb) {
 		}
 
 		tasks.push(function (cb) {
-			let	filePath;
+			let filePath;
+
+			imgType = imageType(data.file.bin);
 
 			if (tmpFilePath) {
 				filePath	= tmpFilePath;
@@ -665,24 +680,53 @@ function saveImage(data, cb) {
 			}
 
 			// As a first step, check the mime type, since this is already given to us
-			if (imageType(data.file.bin).mime !== 'image/png' && imageType(data.file.bin).mime !== 'image/jpeg' && imageType(data.file.bin).mime !== 'image/gif') {
-				log.info(logPrefix + 'Invalid mime type "' + data.uploadedFile.type + '" for uploaded file.');
+			if ( ! imgType || (imageType(data.file.bin).mime !== 'image/png' && imageType(data.file.bin).mime !== 'image/jpeg' && imageType(data.file.bin).mime !== 'image/gif')) {
+				log.info(logPrefix + 'Invalid mime type for uploaded file.');
 				return cb(new Error('Invalid file format, must be of image type PNG, JPEG or GIF'));
 			}
 
-			// Then actually checks so the file loads in our image lib
-			jimp.read(filePath, function (err) {
-				if (err) {
-					log.warn(logPrefix + 'Unable to open uploaded file: ' + err.message);
-				}
+			// Resizing gifs not supported by jimp, convert to png instead
+			if (imageType(data.file.bin).mime === 'image/gif') {
+				log.info(logPrefix + 'GIFs not supported. Image will be converted to PNG');
 
-				cb(err);
-			});
+				jimp.read(filePath, function (err, image) {
+					tmpFilePath = os.tmpdir() + '/' + uuidLib.v1() + '.png';
+
+					if (err) {
+						log.warn(logPrefix + 'Unable to open uploaded file: ' + err.message);
+						return cb(err);
+					}
+
+					// Here you probably could call the cb directly to speed things up
+					image.quality(80).write(tmpFilePath, function (err) {
+						if (err) {
+							log.warn(logPrefix + 'Failed to write file: ' + err.message);
+							return cb(err);
+						}
+
+						// Set imageType from file just to be sure
+						fs.readFile(tmpFilePath, function (err, bin) {
+							data.file.bin = bin;
+							imgType = imageType(bin);
+							cb();
+						});
+					});
+				});
+			} else {
+				// Then actually checks so the file loads in our image lib
+				jimp.read(filePath, function (err) {
+					if (err) {
+						log.warn(logPrefix + 'Unable to open uploaded file: ' + err.message);
+					}
+
+					cb(err);
+				});
+			}
 		});
 
 		// Set image type
 		tasks.push(function (cb) {
-			data.file.type = imageType(data.file.bin).ext;
+			data.file.type = imgType.ext;
 			cb();
 		});
 	}
@@ -705,6 +749,13 @@ function saveImage(data, cb) {
 		} else {
 			data.slug	= slug(data.slug, {'save': ['/', '.', '_', '-']});
 			data.slug	= _.trim(data.slug, '/');
+
+			// If the image was a gif it has been changed to a png and the slug should reflect this
+			if (data.slug.endsWith('.gif') && imgType.ext === 'png') {
+				log.debug(logPrefix + 'Old slug: "' + data.slug + '"');
+				data.slug = data.slug.substring(0, data.slug.length - 3) + 'png';
+				log.debug(logPrefix + 'New slug: "' + data.slug + '"');
+			}
 		}
 
 		// Make sure it is not occupied by another image

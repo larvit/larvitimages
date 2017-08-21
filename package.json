@@ -8,7 +8,7 @@
   "dependencies": {
     "async": "^2.3.0",
     "buffer-equal": "^1.0.0",
-    "fs-extra": "^2.0.0",
+    "fs-extra": "^3.0.0",
     "image-type": "^3.0.0",
     "jimp": "^0.2.27",
     "larvitamintercom": "^0.2.2",
@@ -42,7 +42,7 @@
     "url": "https://github.com/larvit/larvitimages",
     "type": "git"
   },
-  "version": "0.6.6",
+  "version": "0.7.2",
   "readmeFilename": "README.md",
   "bugs": {
     "url": "https://github.com/larvit/larvitimages/issues"
