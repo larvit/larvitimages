@@ -138,21 +138,26 @@ function ready(retries, cb) {
 
 	readyInProgress = true;
 
-	if (exports.mode === 'slave') {
-		log.verbose(logPrefix + 'exports.mode: "' + exports.mode + '", so read');
+	tasks.push(function (cb) {
+		setImmediate(function () {
+			if (exports.mode === 'slave') {
+				log.verbose(logPrefix + 'exports.mode: "' + exports.mode + '", so read');
 
-		tasks.push(function (cb) {
-			amsync.mariadb({'exchange': exports.exchangeName + '_dataDump'}, cb);
+				tasks.push(function (cb) {
+					amsync.mariadb({'exchange': exports.exchangeName + '_dataDump'}, cb);
+				});
+			} else if (exports.mode === 'noSync') {
+				log.info(logPrefix + 'exports.mode: "' + exports.mode + '", will not sync with others before starting');
+			} else if (exports.mode === 'master') {
+				log.verbose(logPrefix + 'exports.mode: "' + exports.mode + '"');
+			} else {
+				const	err	= new Error('Invalid exports.mode! Must be "master", "slave" or "noSync", but is: "' + exports.mode + '"');
+				log.error(logPrefix + err.message);
+				return cb(err);
+			}
+			cb();
 		});
-	} else if (exports.mode === 'noSync') {
-		log.info(logPrefix + 'exports.mode: "' + exports.mode + '", will not sync with others before starting');
-	} else if (exports.mode === 'master') {
-		log.verbose(logPrefix + 'exports.mode: "' + exports.mode + '"');
-	} else {
-		const	err	= new Error('Invalid exports.mode! Must be "master", "slave" or "noSync", but is: "' + exports.mode + '"');
-		log.error(logPrefix + err.message);
-		return cb(err);
-	}
+	});
 
 	// Migrate database
 	tasks.push(function (cb) {
