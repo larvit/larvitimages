@@ -473,7 +473,7 @@ function getImages(options, cb) {
 			for (let i = 0; result[i] !== undefined; i ++) {
 				images[lUtils.formatUuid(result[i].uuid)] 	= result[i];
 				images[lUtils.formatUuid(result[i].uuid)].uuid	= lUtils.formatUuid(result[i].uuid);
-				images[result[i].uuid].metadata	= [];
+				images[lUtils.formatUuid(result[i].uuid)].metadata	= [];
 			}
 			cb(err);
 		});
