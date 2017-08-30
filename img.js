@@ -499,6 +499,11 @@ function getImages(options, cb) {
 		for (let i = 0; metadata[i] !== undefined; i ++) {
 			const	imageUuid	= metadata[i].imageUuid;
 
+			if (images[imageUuid] === undefined) {
+				log.verbose(logPrefix + 'Image/metadata missmatch. Metadata with imageUuid "' + imageUuid + '" is not assosciated with any image');
+				continue;
+			}
+
 			delete metadata[i].imageUuid;
 			images[imageUuid].metadata.push(metadata[i]);
 		}
