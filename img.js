@@ -17,8 +17,7 @@ const	topLogPrefix	= 'larvitimages: img.js: ',
 	db	= require('larvitdb'),
 	_	= require('lodash');
 
-let	intercom,
-	config;
+let	config;
 
 if (fs.existsSync(process.cwd() + '/config/images.json')) {
 	config	= require(process.cwd() + '/config/images.json');
@@ -37,10 +36,6 @@ if (config.storagePath !== undefined) {
 } else {
 	exports.storagePath = process.cwd() + '/larvitimages';
 }
-
-dataWriter.ready(function () {
-	intercom	= require('larvitutils').instances.intercom;
-});
 
 /**
  * Get path to image
@@ -574,8 +569,8 @@ function rmImage(uuid, cb) {
 		message.params	= {};
 		message.params.uuid	= uuid;
 
-		intercom.send(message, options, function (err, msgUuid) {
-			if (err) { cb(err); return; }
+		dataWriter.intercom.send(message, options, function (err, msgUuid) {
+			if (err) return cb(err);
 
 			dataWriter.emitter.once(msgUuid, cb);
 		});
@@ -796,8 +791,8 @@ function saveImage(data, cb) {
 
 		message.params.data = data;
 
-		intercom.send(message, options, function (err, msgUuid) {
-			if (err) { cb(err); return; }
+		dataWriter.intercom.send(message, options, function (err, msgUuid) {
+			if (err) return cb(err);
 
 			dataWriter.emitter.once(msgUuid, cb);
 		});

@@ -2,7 +2,6 @@
 
 const	bufferEqual	= require('buffer-equal'),
 	tmpFolder	= require('os').tmpdir() + '/larvitimages_test',
-	Intercom	= require('larvitamintercom'),
 	uuidLib	= require('uuid'),
 	rimraf	= require('rimraf'),
 	mkdirp	= require('mkdirp'),
@@ -19,13 +18,11 @@ const	bufferEqual	= require('buffer-equal'),
 // Set up winston
 log.remove(log.transports.Console);
 /**/log.add(log.transports.Console, {
-	'level':	'warn',
+	'level':	'error',
 	'colorize':	true,
 	'timestamp':	true,
 	'json':	false
 });/**/
-
-img.dataWriter.mode	= 'noSync';
 
 before(function (done) {
 	const	tasks	= [];
@@ -75,12 +72,6 @@ before(function (done) {
 		});
 	});
 
-	// Setup intercom
-	tasks.push(function (cb) {
-		lUtils.instances.intercom = new Intercom('loopback interface');
-		lUtils.instances.intercom.on('ready', cb);
-	});
-
 	// Create tmp folder
 	tasks.push(function (cb) {
 		mkdirp(tmpFolder, cb);
@@ -90,7 +81,6 @@ before(function (done) {
 });
 
 describe('LarvitImages', function () {
-
 	it('should save an image in database', function (done) {
 		const	tasks	= [];
 
@@ -103,7 +93,7 @@ describe('LarvitImages', function () {
 
 				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = result;
+					saveObj.file.bin	= result;
 
 					cb();
 				});
@@ -114,7 +104,7 @@ describe('LarvitImages', function () {
 		tasks.push(function (cb) {
 			img.saveImage(saveObj, function (err, image) {
 				if (err) throw err;
-				saveObj.uuid = image.uuid;
+				saveObj.uuid	= image.uuid;
 
 				cb();
 			});
@@ -128,7 +118,7 @@ describe('LarvitImages', function () {
 			};
 			img.getImages(options, function (err, images, totalElements) {
 				if (err) throw err;
-				let image = images[Object.keys(images)[0]];
+				let	image	= images[Object.keys(images)[0]];
 				assert.strictEqual(totalElements, 1);
 				assert(bufferEqual(image.image, saveObj.file.bin));
 				assert.strictEqual(saveObj.file.name, image.slug);
@@ -169,7 +159,7 @@ describe('LarvitImages', function () {
 
 				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = result;
+					saveObj.file.bin	= result;
 					cb();
 				});
 			});
@@ -179,7 +169,7 @@ describe('LarvitImages', function () {
 		tasks.push(function (cb) {
 			img.saveImage(saveObj, function (err, image) {
 				if (err) throw err;
-				saveObj.uuid = image.uuid;
+				saveObj.uuid	= image.uuid;
 				cb();
 			});
 		});
@@ -211,7 +201,7 @@ describe('LarvitImages', function () {
 	it('should remove image', function (done) {
 		const	tasks	= [];
 
-		let saveObj = { 'file': { 'name': 'testimage2.jpg' } };
+		let	saveObj	= { 'file': { 'name': 'testimage2.jpg' } };
 
 		// Create testimage
 		tasks.push(function (cb) {
@@ -348,7 +338,7 @@ describe('LarvitImages', function () {
 			};
 			img.getImages(options, function (err, images) {
 				if (err) throw err;
-				let image = images[Object.keys(images)[0]];
+				let	image	= images[Object.keys(images)[0]];
 				assert(bufferEqual(image.image, saveObj.file.bin));
 				assert.strictEqual(saveObj.file.name, image.slug);
 				cb();
@@ -373,7 +363,7 @@ describe('LarvitImages', function () {
 
 				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = result;
+					saveObj.file.bin	= result;
 					cb();
 				});
 			});
@@ -383,16 +373,15 @@ describe('LarvitImages', function () {
 		tasks.push(function (cb) {
 			img.saveImage(saveObj, function (err, image) {
 				if (err) throw err;
-				saveObj.uuid = image.uuid;
+				saveObj.uuid	= image.uuid;
 				cb();
 			});
 		});
 
 		// Get saved image
 		tasks.push(function (cb) {
-			const options = {
-				'slug': saveObj.file.name
-			};
+			const	options	= {'slug': saveObj.file.name};
+
 			img.getImageBin(options, function (err, image) {
 				if (err) throw err;
 				assert(bufferEqual(image, saveObj.file.bin));
@@ -411,7 +400,7 @@ describe('LarvitImages', function () {
 			options	= {},
 			tasks	= [];
 
-		let saveObj = { 'file': { 'name': 'testimage6.jpg' } };
+		let	saveObj	= { 'file': { 'name': 'testimage6.jpg' } };
 
 		// Create testimage
 		tasks.push(function (cb) {
@@ -420,7 +409,7 @@ describe('LarvitImages', function () {
 
 				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = result;
+					saveObj.file.bin	= result;
 					cb();
 				});
 			});
@@ -430,7 +419,7 @@ describe('LarvitImages', function () {
 		tasks.push(function (cb) {
 			img.saveImage(saveObj, function (err, image) {
 				if (err) throw err;
-				saveObj.uuid = image.uuid;
+				saveObj.uuid	= image.uuid;
 				cb();
 			});
 		});
@@ -489,7 +478,7 @@ describe('LarvitImages', function () {
 
 				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = result;
+					saveObj.file.bin	= result;
 					cb();
 				});
 			});
@@ -499,7 +488,7 @@ describe('LarvitImages', function () {
 		tasks.push(function (cb) {
 			img.saveImage(saveObj, function (err, image) {
 				if (err) throw err;
-				saveObj.uuid = image.uuid;
+				saveObj.uuid	= image.uuid;
 				cb();
 			});
 		});
@@ -558,7 +547,7 @@ describe('LarvitImages', function () {
 
 				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = result;
+					saveObj.file.bin	= result;
 					cb();
 				});
 			});
@@ -568,7 +557,7 @@ describe('LarvitImages', function () {
 		tasks.push(function (cb) {
 			img.saveImage(saveObj, function (err, image) {
 				if (err) throw err;
-				saveObj.uuid = image.uuid;
+				saveObj.uuid	= image.uuid;
 				cb();
 			});
 		});
@@ -619,7 +608,7 @@ describe('LarvitImages', function () {
 			options	= {},
 			tasks	= [];
 
-		let saveObj = { 'file': { 'name': 'testimage9.jpg' } };
+		let	saveObj	= { 'file': { 'name': 'testimage9.jpg' } };
 
 		// Create testimage
 		tasks.push(function (cb) {
@@ -628,7 +617,7 @@ describe('LarvitImages', function () {
 
 				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
 					if (err) throw err;
-					saveObj.file.bin = result;
+					saveObj.file.bin	= result;
 					cb();
 				});
 			});
@@ -638,7 +627,7 @@ describe('LarvitImages', function () {
 		tasks.push(function (cb) {
 			img.saveImage(saveObj, function (err, image) {
 				if (err) throw err;
-				saveObj.uuid = image.uuid;
+				saveObj.uuid	= image.uuid;
 				cb();
 			});
 		});
@@ -676,15 +665,14 @@ describe('LarvitImages', function () {
 
 			img.clearCache(options, function (err) {
 				if (err) throw err;
-
 				cb();
 			});
 		});
 
 		// Check if cached image is deleted
 		tasks.push(function (cb) {
-			const	uuid = lUtils.formatUuid(saveObj.uuid),
-				path = img.cacheDir + '/' + uuid.substr(0, 4).split('').join('/') + '/' + uuid + '_w400_h400.jpg';
+			const	uuid	= lUtils.formatUuid(saveObj.uuid),
+				path	= img.cacheDir + '/' + uuid.substr(0, 4).split('').join('/') + '/' + uuid + '_w400_h400.jpg';
 
 			fs.stat(path, function (err) {
 				assert(err);
@@ -716,7 +704,7 @@ describe('LarvitImages', function () {
 				assert.notStrictEqual(image.uuid, undefined);
 				assert.strictEqual(image.slug, 'flanders.png');
 
-				uuid = image.uuid;
+				uuid	= image.uuid;
 				cb();
 			});
 		});
@@ -736,7 +724,6 @@ describe('LarvitImages', function () {
 		});
 
 		async.series(tasks, done);
-
 	});
 });
 
