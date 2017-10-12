@@ -41,7 +41,10 @@ function listenToQueue(retries, cb) {
 			'objectKey':	'intercom',
 			'default':	new Intercom('loopback interface'),
 			'defaultLabel':	'loopback interface'
-		}, cb);
+		}, function (err, warning) {
+			if (warning) log.warn(logPrefix + warning);
+			cb(err);
+		});
 	});
 
 	tasks.push(function (cb) {
@@ -50,7 +53,10 @@ function listenToQueue(retries, cb) {
 			'objectKey':	'mode',
 			'default':	'noSync',
 			'validValues':	['master', 'slave', 'noSync']
-		}, cb);
+		}, function (err, warning) {
+			if (warning) log.warn(logPrefix + warning);
+			cb(err);
+		});
 	});
 
 	// Set listenMethod
@@ -145,7 +151,10 @@ function ready(retries, cb) {
 			'objectKey':	'intercom',
 			'default':	new Intercom('loopback interface'),
 			'defaultLabel':	'loopback interface'
-		}, cb);
+		}, function (err, warning) {
+			if (warning) log.warn(logPrefix + warning);
+			cb(err);
+		});
 	});
 
 	tasks.push(function (cb) {
@@ -154,7 +163,10 @@ function ready(retries, cb) {
 			'objectKey':	'mode',
 			'default':	'noSync',
 			'validValues':	['master', 'slave', 'noSync']
-		}, cb);
+		}, function (err, warning) {
+			if (warning) log.warn(logPrefix + warning);
+			cb(err);
+		});
 	});
 
 	tasks.push(function (cb) {
