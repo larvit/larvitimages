@@ -18,7 +18,7 @@ const	bufferEqual	= require('buffer-equal'),
 // Set up winston
 log.remove(log.transports.Console);
 /**/log.add(log.transports.Console, {
-	'level':	'error',
+	'level':	'warn',
 	'colorize':	true,
 	'timestamp':	true,
 	'json':	false
@@ -75,6 +75,15 @@ before(function (done) {
 	// Create tmp folder
 	tasks.push(function (cb) {
 		mkdirp(tmpFolder, cb);
+	});
+
+	// Setting mode and intercom for test purposes
+	// This is not required for the tests to pass, but it is required to not trigger warnings
+	tasks.push(function (cb) {
+		const	Intercom	= require('larvitamintercom');
+		img.dataWriter.mode	= 'master';
+		img.dataWriter.intercom	= new Intercom('loopback interface');
+		cb();
 	});
 
 	async.series(tasks, done);
