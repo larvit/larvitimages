@@ -173,7 +173,10 @@ function ready(retries, cb) {
 		setImmediate(function () {
 			if (exports.mode === 'slave') {
 				log.verbose(logPrefix + 'exports.mode: "' + exports.mode + '", so read');
-				amsync.mariadb({'exchange': exports.exchangeName + '_dataDump'}, cb);
+				amsync.mariadb({
+					'exchange':	exports.exchangeName + '_dataDump',
+					'intercom':	exports.intercom
+				}, cb);
 			} else if (exports.mode === 'noSync') {
 				log.info(logPrefix + 'exports.mode: "' + exports.mode + '", will not sync with others before starting');
 				cb();
