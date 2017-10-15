@@ -112,6 +112,9 @@ function listenToQueue(retries, cb) {
 		}, cb);
 	});
 
+	// Run ready function
+	tasks.push(ready);
+
 	async.series(tasks);
 }
 // Run listenToQueue as soon as all I/O is done, this makes sure the exports.mode can be set
@@ -276,7 +279,7 @@ function runDumpServer(cb) {
 		'args':	args
 	};
 
-	options['Content-Type'] = 'application/sql';
+	options['Content-Type']	= 'application/sql';
 	options.intercom	= exports.intercom;
 
 	new amsync.SyncServer(options, cb);
