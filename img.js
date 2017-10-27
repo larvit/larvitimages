@@ -620,6 +620,13 @@ function saveImage(data, cb) {
 	let	tmpFilePath,
 		imgType;
 
+	if ( ! data.file) {
+		const	err	= new Error('Missing file object from formidable');
+		log.warn(logPrefix + err.message);
+		log.verbose(logPrefix + err.stack);
+		return cb(err);
+	}
+
 	if (logObject.file.bin) {
 		logObject.file.bin = 'binary data removed for logging purposes';
 	}
