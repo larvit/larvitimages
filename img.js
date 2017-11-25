@@ -8,6 +8,7 @@ const	topLogPrefix	= 'larvitimages: img.js: ',
 	mkdirp	= require('mkdirp'),
 	lUtils	= require('larvitutils'),
 	async	= require('async'),
+	crypto	= require('crypto'),
 	slug	= require('larvitslugify'),
 	path	= require('path'),
 	jimp	= require('jimp'),
@@ -214,6 +215,13 @@ function clearCache(options, cb) {
 
 	async.series(tasks, cb);
 }
+
+function generateEtag(pathToFile, cb){
+	fs.readFile(pathToFile, function (err, buf){
+		const etag = crypto.createHash('md5').update(buf).digest('hex');
+		cb(err, etag);
+	});
+} 
 
 function getImageBin(options, cb) {
 	const	logPrefix	= topLogPrefix + 'getImageBin() - ';
@@ -862,9 +870,9 @@ function saveImage(data, cb) {
 exports.clearCache	= clearCache;
 exports.createImageDirectory	= createImageDirectory;
 exports.dataWriter	= dataWriter;
+exports.generateEtag	= generateEtag;
 exports.getImageBin	= getImageBin;
 exports.getImages	= getImages;
-exports.getPathToImage	= getPathToImage;
 exports.getPathToImage	= getPathToImage;
 exports.rmImage	= rmImage;
 exports.saveImage	= saveImage;

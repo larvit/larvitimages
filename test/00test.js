@@ -27,6 +27,8 @@ log.remove(log.transports.Console);
 before(function (done) {
 	const	tasks	= [];
 
+	this.timeout(10000);
+
 	// Run DB Setup
 	tasks.push(function (cb) {
 		let confFile;
@@ -85,6 +87,8 @@ before(function (done) {
 		img.dataWriter.intercom	= new Intercom('loopback interface');
 		cb();
 	});
+
+	tasks.push(img.dataWriter.ready);
 
 	async.series(tasks, done);
 });
