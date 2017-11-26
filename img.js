@@ -807,6 +807,10 @@ function saveImage(data, cb) {
 			data.uuid	= uuidLib.v4();
 		}
 
+		if (data.etag === undefined) {
+			data.etag	= uuidLib.v4();
+		}
+
 		message.params.data = data;
 
 		dataWriter.intercom.send(message, options, function (err, msgUuid) {

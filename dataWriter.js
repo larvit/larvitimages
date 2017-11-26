@@ -291,8 +291,8 @@ function saveImage(params, deliveryTag, msgUuid) {
 
 	// Set image record
 	tasks.push(function (cb) {
-		const	sql	= 'INSERT IGNORE INTO images_images (uuid, slug) VALUES(?,?);',
-			dbFields	= [lUtils.uuidToBuffer(params.data.uuid), params.data.slug];
+		const	sql	= 'INSERT IGNORE INTO images_images (uuid, slug, etag) VALUES(?,?);',
+			dbFields	= [lUtils.uuidToBuffer(params.data.uuid), params.data.slug, lUtils.uuidToBuffer(params.data.etag)];
 
 		db.query(sql, dbFields, function (err) {
 			if (err) return cb(err);
