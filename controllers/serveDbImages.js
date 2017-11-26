@@ -5,7 +5,14 @@ const	mime	= require('mime-types'),
 	path	= require('path'),
 	async	= require('async'),
 	log	= require('winston'),
-	img	= require('larvitimages');
+	img	= require('larvitimages'),
+	crypto	= require('crypto'),
+	fs	= require('fs');
+
+function generateEtag(path) {
+	const stats = fs.statSync(path);
+	return crypto.createHash('md5').update(stats.mtime.toString() + stats.size.toString() + stats.ino.toString()).digest('hex');
+}
 
 exports.run = function (req, res) {
 	const	slug	= path.parse(req.urlParsed.pathname).base,
@@ -18,6 +25,9 @@ exports.run = function (req, res) {
 
 		tasks.push(function (cb) {
 			img.getImages({'slugs': [slug]}, function (err, images) {
+				let image,
+					imagePath;
+				
 				if (err) {
 					log.warn(logPrefix + err.message);
 					return cb();
@@ -25,7 +35,28 @@ exports.run = function (req, res) {
 				
 				if (Object.keys(images).length === 0) return cb();
 
-				if (images[Object.keys(images)[0]].etag === req.headers['if-none-match']) {
+				image = images[Object.keys(images)[0]];
+
+				if (req.urlParsed.query.width !== undefined || req.urlParsed.query.height !== undefined) {
+					let pathToFile = img.getPathToImage(image.uuid, true);
+
+					pathToFile += image.uuid;
+
+					if (req.urlParsed.query.width) pathToFile += ('_w' + req.urlParsed.query.width);
+					if (req.urlParsed.query.height) pathToFile += ('_h' + req.urlParsed.query.height);
+
+					pathToFile += ('.' + image.type);
+
+					if (fs.existsSync(pathToFile)) {
+						imagePath = pathToFile;
+					}
+				}
+
+				if ( ! imagePath) {
+					imagePath = img.getPathToImage(image.uuid, false) + slug;
+				}
+
+				if (generateEtag(imagePath) === req.headers['if-none-match']) {
 					res.writeHead(304, 'Not Modified');
 					res.end();
 					responseSent = true;
@@ -39,8 +70,7 @@ exports.run = function (req, res) {
 	tasks.push(function (cb) {
 		if (responseSent) return cb();
 	
-		img.getImageBin({'slug': slug, 'width': req.urlParsed.query.width, 'height': req.urlParsed.query.height}, function (err, imgBuf, img) {
-			let etag = img.etag;
+		img.getImageBin({'slug': slug, 'width': req.urlParsed.query.width, 'height': req.urlParsed.query.height}, function (err, imgBuf, filePath) {
 
 			if (err) {
 				log.info('larvitimages: controllers/serveDbImages.js - slug: "' + slug + '" err from img.getImageBin(): ' + err.message);
@@ -57,13 +87,9 @@ exports.run = function (req, res) {
 
 			imgMime = mime.lookup(slug) || 'application/octet-stream';
 
-			if (etag) {
-				if (req.urlParsed.query.height) etag += req.urlParsed.query.height;
-				if (req.urlParsed.query.width)	etag += req.urlParsed.query.width;
-				res.setHeader('Cache-Control', ['public', 'max-age=3600']);
-				res.setHeader('Expires', new Date(Date.now() + 3600000).toUTCString());
-				res.setHeader('ETag', etag);
-			}
+			res.setHeader('Cache-Control', ['public', 'max-age=3600']);
+			//res.setHeader('Expires', new Date(Date.now() + 3600000).toUTCString());
+			res.setHeader('ETag', generateEtag(filePath));
 
 			res.setHeader('Content-Length', imgBuf.length);
 			res.writeHead(200, {'Content-Type': imgMime});

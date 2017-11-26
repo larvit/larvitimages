@@ -8,7 +8,6 @@ const	topLogPrefix	= 'larvitimages: img.js: ',
 	mkdirp	= require('mkdirp'),
 	lUtils	= require('larvitutils'),
 	async	= require('async'),
-	crypto	= require('crypto'),
 	slug	= require('larvitslugify'),
 	path	= require('path'),
 	jimp	= require('jimp'),
@@ -216,15 +215,6 @@ function clearCache(options, cb) {
 	async.series(tasks, cb);
 }
 
-function generateEtag(pathToFile, cb){
-	console.log(pathToFile);
-	fs.readFile(pathToFile, function (err, buf){
-		console.log(buf);
-		const etag = crypto.createHash('md5').update(buf).digest('hex');
-		cb(err, etag);
-	});
-} 
-
 function getImageBin(options, cb) {
 	const	logPrefix	= topLogPrefix + 'getImageBin() - ';
 
@@ -269,7 +259,7 @@ function getImageBin(options, cb) {
 					});
 					return;
 				}
-				cb(null, fileBuf, image);
+				cb(null, fileBuf, fileToLoad);
 			});
 		}
 
@@ -458,7 +448,7 @@ function getImages(options, cb) {
 
 	// Get images
 	tasks.push(function (cb) {
-		let	sql	=	'SELECT images.uuid, images.slug, images.type, images.etag\n';
+		let	sql	=	'SELECT images.uuid, images.slug, images.type\n';
 
 		sql	+=	'FROM images_images as images\n';
 		sql	+= generateWhere();
@@ -479,7 +469,6 @@ function getImages(options, cb) {
 				images[lUtils.formatUuid(result[i].uuid)] 	= result[i];
 				images[lUtils.formatUuid(result[i].uuid)].uuid	= lUtils.formatUuid(result[i].uuid);
 				images[lUtils.formatUuid(result[i].uuid)].metadata	= [];
-				images[lUtils.formatUuid(result[i].uuid)].etag	= lUtils.formatUuid(result[i].etag);
 			}
 			cb(err);
 		});
@@ -807,10 +796,6 @@ function saveImage(data, cb) {
 			data.uuid	= uuidLib.v4();
 		}
 
-		if (data.etag === undefined) {
-			data.etag	= uuidLib.v4();
-		}
-
 		message.params.data = data;
 
 		dataWriter.intercom.send(message, options, function (err, msgUuid) {
@@ -877,7 +862,6 @@ function saveImage(data, cb) {
 exports.clearCache	= clearCache;
 exports.createImageDirectory	= createImageDirectory;
 exports.dataWriter	= dataWriter;
-exports.generateEtag	= generateEtag;
 exports.getImageBin	= getImageBin;
 exports.getImages	= getImages;
 exports.getPathToImage	= getPathToImage;
