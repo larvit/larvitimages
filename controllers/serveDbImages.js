@@ -9,7 +9,9 @@ exports.run = function (req, res) {
 	const	slug	= path.parse(req.urlParsed.pathname).base;
 
 	let	imgMime;
-	img.getImageBin({'slug': slug, 'width': req.urlParsed.query.width, 'height': req.urlParsed.query.height}, function (err, imgBuf) {
+	img.getImageBin({'slug': slug, 'width': req.urlParsed.query.width, 'height': req.urlParsed.query.height}, function (err, imgBuf, img) {
+		let etag = img.etag;
+
 		if (err) {
 			log.info('larvitimages: controllers/serveDbImages.js - slug: "' + slug + '" err from img.getImageBin(): ' + err.message);
 			res.writeHead(500, {'Content-Type': 'text/plain' });
@@ -24,6 +26,13 @@ exports.run = function (req, res) {
 		}
 
 		imgMime = mime.lookup(slug) || 'application/octet-stream';
+
+		if (etag) {
+			if (req.urlParsed.query.height) etag += req.urlParsed.query.height;
+			if (req.urlParsed.query.width)	etag += req.urlParsed.query.width;
+			res.setHeader('Cache-Control', ['public', 'max-age=86400']);
+			res.setHeader('ETag', etag);
+		}
 
 		res.writeHead(200, {'Content-Type': imgMime});
 		res.end(imgBuf, 'binary');

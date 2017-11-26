@@ -217,7 +217,9 @@ function clearCache(options, cb) {
 }
 
 function generateEtag(pathToFile, cb){
+	console.log(pathToFile);
 	fs.readFile(pathToFile, function (err, buf){
+		console.log(buf);
 		const etag = crypto.createHash('md5').update(buf).digest('hex');
 		cb(err, etag);
 	});
@@ -267,7 +269,7 @@ function getImageBin(options, cb) {
 					});
 					return;
 				}
-				cb(null, fileBuf);
+				cb(null, fileBuf, image);
 			});
 		}
 
@@ -456,7 +458,7 @@ function getImages(options, cb) {
 
 	// Get images
 	tasks.push(function (cb) {
-		let	sql	=	'SELECT images.uuid, images.slug, images.type\n';
+		let	sql	=	'SELECT images.uuid, images.slug, images.type, images.etag\n';
 
 		sql	+=	'FROM images_images as images\n';
 		sql	+= generateWhere();
@@ -477,6 +479,7 @@ function getImages(options, cb) {
 				images[lUtils.formatUuid(result[i].uuid)] 	= result[i];
 				images[lUtils.formatUuid(result[i].uuid)].uuid	= lUtils.formatUuid(result[i].uuid);
 				images[lUtils.formatUuid(result[i].uuid)].metadata	= [];
+				images[lUtils.formatUuid(result[i].uuid)].etag	= lUtils.formatUuid(result[i].etag);
 			}
 			cb(err);
 		});
