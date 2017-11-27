@@ -9,6 +9,7 @@ const	topLogPrefix	= 'larvitimages: dataWriter.js: ',
 	lUtils	= require('larvitutils'),
 	amsync	= require('larvitamsync'),
 	async	= require('async'),
+	that	= this,
 	log	= require('winston'),
 	db	= require('larvitdb');
 
@@ -151,6 +152,17 @@ function ready(retries, cb) {
 	tasks.push(function (cb) {
 		checkKey({
 			'obj':	exports,
+			'objectKey':	'options',
+			'default':	{}
+		}, function (err, warning) {
+			if (warning) log.warn(logPrefix + warning);
+			cb(err);
+		});
+	});
+
+	tasks.push(function (cb) {
+		checkKey({
+			'obj':	exports,
 			'objectKey':	'intercom',
 			'default':	new Intercom('loopback interface'),
 			'defaultLabel':	'loopback interface'
@@ -250,7 +262,14 @@ function rmImage(params, deliveryTag, msgUuid) {
 }
 
 function runDumpServer(cb) {
-	const	options	= {'exchange': exports.exchangeName + '_dataDump'},
+	const	options	= {
+			'exchange': exports.exchangeName + '_dataDump',
+			'amsync': {
+				'host': that.options.amsync ? that.options.amsync.host : null,
+				'minPort': that.options.amsync ? that.options.amsync.minPort : null,
+				'maxPort': that.options.amsync ? that.options.amsync.maxPort : null
+			}
+		},
 		args	= [];
 
 	if (db.conf.host) {
@@ -351,6 +370,7 @@ function saveImage(params, deliveryTag, msgUuid) {
 
 exports.emitter	= new EventEmitter();
 exports.exchangeName	= 'larvitimages';
+exports.options	= undefined;
 exports.ready	= ready;
 exports.rmImage	= rmImage;
 exports.saveImage	= saveImage;

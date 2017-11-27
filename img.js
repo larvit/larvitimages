@@ -865,5 +865,6 @@ exports.dataWriter	= dataWriter;
 exports.getImageBin	= getImageBin;
 exports.getImages	= getImages;
 exports.getPathToImage	= getPathToImage;
+exports.options	= dataWriter.options;
 exports.rmImage	= rmImage;
 exports.saveImage	= saveImage;
