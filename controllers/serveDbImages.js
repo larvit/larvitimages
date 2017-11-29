@@ -9,8 +9,8 @@ const	mime	= require('mime-types'),
 	crypto	= require('crypto'),
 	fs	= require('fs');
 
-function generateEtag(path) {
-	const stats = fs.statSync(path);
+function generateEtag(path, stats) {
+	if ( ! path || ! stats) return '';
 	return crypto.createHash('md5').update(stats.mtime.toString() + stats.size.toString() + stats.ino.toString()).digest('hex');
 }
 
@@ -19,7 +19,8 @@ exports.run = function (req, res) {
 		tasks	= [];
 
 	let	imgMime,
-		responseSent = false;
+		responseSent = false,
+		stats;
 
 	if (req.headers && req.headers['if-none-match'] !== undefined) {
 
@@ -56,7 +57,9 @@ exports.run = function (req, res) {
 					imagePath = img.getPathToImage(image.uuid, false) + slug;
 				}
 
-				if (generateEtag(imagePath) === req.headers['if-none-match']) {
+				stats = fs.statSync(imagePath);
+
+				if (generateEtag(imagePath, stats) === req.headers['if-none-match']) {
 					res.writeHead(304, 'Not Modified');
 					res.end();
 					responseSent = true;
@@ -87,9 +90,9 @@ exports.run = function (req, res) {
 
 			imgMime = mime.lookup(slug) || 'application/octet-stream';
 
-			res.setHeader('Cache-Control', ['public', 'max-age=3600']);
-			//res.setHeader('Expires', new Date(Date.now() + 3600000).toUTCString());
-			res.setHeader('ETag', generateEtag(filePath));
+			res.setHeader('Last-Modified', stats.mtime);
+			res.setHeader('Cache-Control', ['public', 'max-age=900']);
+			res.setHeader('ETag', generateEtag(filePath, stats));
 
 			res.setHeader('Content-Length', imgBuf.length);
 			res.writeHead(200, {'Content-Type': imgMime});
