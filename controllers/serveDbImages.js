@@ -9,8 +9,8 @@ const	mime	= require('mime-types'),
 	crypto	= require('crypto'),
 	fs	= require('fs');
 
-function generateEtag(path, stats) {
-	if ( ! path || ! stats) return '';
+function generateEtag(path) {
+	const stats = fs.statSync(path);
 	return crypto.createHash('md5').update(stats.mtime.toString() + stats.size.toString() + stats.ino.toString()).digest('hex');
 }
 
@@ -57,9 +57,7 @@ exports.run = function (req, res) {
 					imagePath = img.getPathToImage(image.uuid, false) + slug;
 				}
 
-				stats = fs.statSync(imagePath);
-
-				if (generateEtag(imagePath, stats) === req.headers['if-none-match']) {
+				if (generateEtag(imagePath) === req.headers['if-none-match']) {
 					res.writeHead(304, 'Not Modified');
 					res.end();
 					responseSent = true;
@@ -90,7 +88,7 @@ exports.run = function (req, res) {
 
 			imgMime = mime.lookup(slug) || 'application/octet-stream';
 
-			res.setHeader('Last-Modified', stats.mtime);
+			res.setHeader('Last-Modified', fs.statSync(filePath).mtime);
 			res.setHeader('Cache-Control', ['public', 'max-age=900']);
 			res.setHeader('ETag', generateEtag(filePath, stats));
 
