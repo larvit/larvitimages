@@ -10,8 +10,17 @@ const	mime	= require('mime-types'),
 	fs	= require('fs');
 
 function generateEtag(path) {
-	const stats = fs.statSync(path);
-	return crypto.createHash('md5').update(stats.mtime.toString() + stats.size.toString() + stats.ino.toString()).digest('hex');
+	let stats;
+
+	if ( ! fs.existsSync(path)) return false;
+
+	try {
+		stats = fs.statSync(path);
+		return crypto.createHash('md5').update(stats.mtime.toString() + stats.size.toString() + stats.ino.toString()).digest('hex');
+	} catch (err) {
+		log.warn(logPrefix + 'generateEtag() - Failed to generate etag for file "' + path + '": ' + err.message);
+		return false;
+	}
 }
 
 exports.run = function (req, res) {
