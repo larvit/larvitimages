@@ -19,8 +19,7 @@ exports.run = function (req, res) {
 		tasks	= [];
 
 	let	imgMime,
-		responseSent = false,
-		stats;
+		responseSent = false;
 
 	if (req.headers && req.headers['if-none-match'] !== undefined) {
 
@@ -28,12 +27,12 @@ exports.run = function (req, res) {
 			img.getImages({'slugs': [slug]}, function (err, images) {
 				let image,
 					imagePath;
-				
+
 				if (err) {
 					log.warn(logPrefix + err.message);
 					return cb();
 				}
-				
+
 				if (Object.keys(images).length === 0) return cb();
 
 				image = images[Object.keys(images)[0]];
@@ -70,7 +69,7 @@ exports.run = function (req, res) {
 
 	tasks.push(function (cb) {
 		if (responseSent) return cb();
-	
+
 		img.getImageBin({'slug': slug, 'width': req.urlParsed.query.width, 'height': req.urlParsed.query.height}, function (err, imgBuf, filePath) {
 
 			if (err) {
@@ -87,10 +86,15 @@ exports.run = function (req, res) {
 			}
 
 			imgMime = mime.lookup(slug) || 'application/octet-stream';
-
-			res.setHeader('Last-Modified', fs.statSync(filePath).mtime);
 			res.setHeader('Cache-Control', ['public', 'max-age=900']);
-			res.setHeader('ETag', generateEtag(filePath, stats));
+
+			try {
+				const stats = fs.statSync(filePath);
+				res.setHeader('Last-Modified', stats.mtime);
+				res.setHeader('ETag', generateEtag(filePath));
+			} catch (err) {
+				log.warn(logPrefix + 'Failed to read stats from file "' + filePath + '": ' + err.message);
+			}
 
 			res.setHeader('Content-Length', imgBuf.length);
 			res.writeHead(200, {'Content-Type': imgMime});
