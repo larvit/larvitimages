@@ -242,18 +242,29 @@ function ready(retries, cb) {
 }
 
 function rmImage(params, deliveryTag, msgUuid) {
-	const	tasks	= [];
+	const	logPrefix	= topLogPrefix + 'rmImage() - ',
+		tasks	= [],
+		uuid	= lUtils.uuidToBuffer(params.uuid);
+
+	tasks.push(function (cb) {
+		if ( ! uuid ) {
+			const	err	= new Error('Invalid uuid supplied');
+			log.error(logPrefix + err.message);
+			return cb(err);
+		}
+		cb();
+	});
 
 	tasks.push(ready);
 
 	// Delete metadata
 	tasks.push(function (cb) {
-		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', [lUtils.uuidToBuffer(params.uuid)], cb);
+		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', uuid, cb);
 	});
 
 	// Delete database entry
 	tasks.push(function (cb) {
-		db.query('DELETE FROM images_images WHERE uuid = ?', [lUtils.uuidToBuffer(params.uuid)], cb);
+		db.query('DELETE FROM images_images WHERE uuid = ?', uuid, cb);
 	});
 
 	async.series(tasks, function (err) {
@@ -304,7 +315,17 @@ function runDumpServer(cb) {
 
 function saveImage(params, deliveryTag, msgUuid) {
 	const	logPrefix	= topLogPrefix + 'saveImage() - ',
-		tasks	= [];
+		tasks	= [],
+		uuid	= lUtils.uuidToBuffer(params.data.uuid);
+
+	tasks.push(function (cb) {
+		if ( ! uuid ) {
+			const	err	= new Error('Invalid uuid supplied');
+			log.error(logPrefix + err.message);
+			return cb(err);
+		}
+		cb();
+	});
 
 	// Set image record
 	tasks.push(function (cb) {

@@ -41,7 +41,7 @@ if (config.storagePath !== undefined) {
  * Get path to image
  *
  * @param str	- 'd893b68d-bb64-40ac-bec7-14e640a235a6'
- *
+ * @return str
  */
 function getPathToImage(uuid, cache) {
 	if (cache) {
@@ -70,11 +70,19 @@ function createImageDirectory(uuid, cache, cb) {
 	}
 
 	// Check if storage path is defined and set it.
-	if (exports.storagePath === undefined) return cb(new Error('No defined path for storing images.'));
+	if (exports.storagePath === undefined) {
+		const	err	 = new Error('No defined path for storing images.');
+		log.warn(logPrefix + err.message);
+		return cb(err);
+	}
 
-	path = getPathToImage(uuid, cache);
+	if ( ! uuidValidate(uuid, 4)) {
+		const	err	= new Error('Invalid uuid');
+		log.warn(logPrefix + err.message);
+		return cb(err);
+	}
 
-	if ( ! uuidValidate(uuid, 4)) return cb(new Error('Invalid uuid'));
+	path	= getPathToImage(uuid, cache);
 
 	if ( ! fs.existsSync(path)) {
 		mkdirp(path, function (err) {
@@ -113,7 +121,7 @@ function clearCache(options, cb) {
 	}
 
 	if (Object.keys(options).length === 0) {
-		options.clearAll = true;
+		options.clearAll	= true;
 	}
 
 	if (typeof cb !== 'function') {
@@ -142,7 +150,7 @@ function clearCache(options, cb) {
 		});
 	} else {
 
-		// if no uuid is given get image data by slug.
+		// If no uuid is given get image data by slug.
 		if (options.uuid === undefined) {
 			tasks.push(function (cb) {
 				getImages({'slugs': [options.slug]}, function (err, image) {
@@ -168,7 +176,7 @@ function clearCache(options, cb) {
 
 			fs.stat(getPathToImage(options.uuid, true), function (err, stats) {
 				if (err && err.code === 'ENOENT') {
-					exists = false;
+					exists	= false;
 					return cb();
 				} else if (err) {
 					log.error(logPrefix + 'Unknown error when fs.stat(' + exports.cacheDir + '): ' + err.message);
@@ -232,7 +240,7 @@ function getImageBin(options, cb) {
 		if (Object.keys(images).length === 0) {
 			return cb();
 		} else {
-			image = images[Object.keys(images)[0]];
+			image	= images[Object.keys(images)[0]];
 		}
 
 		uuid	= image.uuid;
@@ -363,11 +371,11 @@ function getImages(options, cb) {
 	// Make sure options that should be arrays actually are arrays
 	// This will simplify our lives in the SQL builder below
 	if (options.uuids !== undefined && ! (options.uuids instanceof Array)) {
-		options.uuids = [options.uuids];
+		options.uuids	= [options.uuids];
 	}
 
 	if (options.slugs !== undefined && ! (options.slugs instanceof Array)) {
-		options.slugs = [options.slugs];
+		options.slugs	= [options.slugs];
 	}
 
 	// Trim slugs from slashes
@@ -384,7 +392,7 @@ function getImages(options, cb) {
 	}
 
 	if (options.limit === undefined) {
-		options.limit = 10;
+		options.limit	= 10;
 	}
 
 	// Convert uuids to buffers
@@ -399,7 +407,7 @@ function getImages(options, cb) {
 	log.debug(logPrefix + 'Called with options: "' + JSON.stringify(options) + '"');
 
 	function generateWhere() {
-		let sql = '';
+		let	sql	= '';
 
 		sql +=	'WHERE 1 + 1\n';
 
@@ -432,8 +440,9 @@ function getImages(options, cb) {
 			sql += '	AND images.uuid IN (';
 
 			for (let i = 0; options.uuids[i] !== undefined; i ++) {
+				const	uuid	= String(options.uuids[i]);
 				sql += '?,';
-				dbFields.push(options.uuids[i]);
+				dbFields.push(uuid);
 			}
 
 			sql = sql.substring(0, sql.length - 1) + ')\n';
@@ -483,7 +492,7 @@ function getImages(options, cb) {
 
 		db.query(sql, dbFields, function (err, result) {
 			for (let i = 0; result[i] !== undefined; i ++) {
-				result[i].imageUuid = lUtils.formatUuid(result[i].imageUuid);
+				result[i].imageUuid	= lUtils.formatUuid(result[i].imageUuid);
 				metadata.push(result[i]);
 			}
 			cb(err);
@@ -514,13 +523,13 @@ function getImages(options, cb) {
 
 				for (let uuid in images) {
 					subtasks.push(function (cb) {
-						const	path = getPathToImage(uuid);
+						const	path	= getPathToImage(uuid);
 
 						if (err) return cb(err);
 
 						fs.readFile(path + uuid + '.' + images[uuid].type, function (err, image) {
 							if (err) return cb(err);
-							images[uuid].image = image;
+							images[uuid].image	= image;
 							cb();
 						});
 					});
@@ -537,10 +546,18 @@ function getImages(options, cb) {
 };
 
 function rmImage(uuid, cb) {
-	const	tasks	= [];
+	const	logPrefix	= topLogPrefix + 'rmImage() - ',
+		imgUuid	= lUtils.uuidToBuffer(uuid),
+		tasks	= [];
 
 	let	slug,
 		type;
+
+	if ( ! imgUuid) {
+		const	err	= new Error('Invalid uuid');
+		log.warn(logPrefix + err.message);
+		return cb(err);
+	}
 
 	tasks.push(function (cb) {
 		dataWriter.ready(cb);
@@ -548,7 +565,7 @@ function rmImage(uuid, cb) {
 
 	// Get slug
 	tasks.push(function (cb) {
-		db.query('SELECT * FROM images_images WHERE uuid = ?', [lUtils.uuidToBuffer(uuid)], function (err, rows) {
+		db.query('SELECT * FROM images_images WHERE uuid = ?', imgUuid, function (err, rows) {
 			if (err) return cb(err);
 
 			if (rows.length > 0) {
@@ -613,9 +630,9 @@ function rmImage(uuid, cb) {
  * @param func cb(err, image) - the image will be a row from getImages()
  */
 function saveImage(data, cb) {
-	const	logPrefix	= topLogPrefix + 'saveImage() - ',
-		tasks	= [],
-		logObject	= _.cloneDeep(data);
+	const	logObject	= _.cloneDeep(data),
+		logPrefix	= topLogPrefix + 'saveImage() - ',
+		tasks	= [];
 
 	let	tmpFilePath,
 		imgType;
@@ -628,7 +645,7 @@ function saveImage(data, cb) {
 	}
 
 	if (logObject.file.bin) {
-		logObject.file.bin = 'binary data removed for logging purposes';
+		logObject.file.bin	= 'binary data removed for logging purposes';
 	}
 
 	log.debug(logPrefix + 'Running with data. "' + JSON.stringify(logObject) + '"');
@@ -658,7 +675,7 @@ function saveImage(data, cb) {
 		} else if (data.file.bin && ! data.file.path) {
 			// Save bin data to temp file if no path was provided
 
-			tmpFilePath = os.tmpdir() + '/' + uuidLib.v1()  + '.' + imageType(data.file.bin).ext;
+			tmpFilePath	= os.tmpdir() + '/' + uuidLib.v1() + '.' + imageType(data.file.bin).ext;
 
 			tasks.push(function (cb) {
 				fs.writeFile(tmpFilePath, data.file.bin, function (err) {
@@ -676,9 +693,9 @@ function saveImage(data, cb) {
 		}
 
 		tasks.push(function (cb) {
-			let filePath;
+			let	filePath;
 
-			imgType = imageType(data.file.bin);
+			imgType	= imageType(data.file.bin);
 
 			if (tmpFilePath) {
 				filePath	= tmpFilePath;
@@ -697,7 +714,7 @@ function saveImage(data, cb) {
 				log.info(logPrefix + 'GIFs not supported. Image will be converted to PNG');
 
 				jimp.read(filePath, function (err, image) {
-					tmpFilePath = os.tmpdir() + '/' + uuidLib.v1() + '.png';
+					tmpFilePath	= os.tmpdir() + '/' + uuidLib.v1() + '.png';
 
 					if (err) {
 						log.warn(logPrefix + 'Unable to open uploaded file: ' + err.message);
@@ -713,8 +730,8 @@ function saveImage(data, cb) {
 
 						// Set imageType from file just to be sure
 						fs.readFile(tmpFilePath, function (err, bin) {
-							data.file.bin = bin;
-							imgType = imageType(bin);
+							data.file.bin	= bin;
+							imgType	= imageType(bin);
 							cb();
 						});
 					});
@@ -746,7 +763,7 @@ function saveImage(data, cb) {
 
 		// If no slug or uuid was supplied use the filename as base for the slug
 		if ( ! data.uuid && ! data.slug) {
-			data.slug = data.file.name;
+			data.slug	= data.file.name;
 		}
 
 		// If no slug is set by here, it means an id is supplied and the slug
@@ -796,7 +813,7 @@ function saveImage(data, cb) {
 			data.uuid	= uuidLib.v4();
 		}
 
-		message.params.data = data;
+		message.params.data	= data;
 
 		dataWriter.intercom.send(message, options, function (err, msgUuid) {
 			if (err) return cb(err);
