@@ -152,17 +152,6 @@ function ready(retries, cb) {
 	tasks.push(function (cb) {
 		checkKey({
 			'obj':	exports,
-			'objectKey':	'options',
-			'default':	{}
-		}, function (err, warning) {
-			if (warning) log.warn(logPrefix + warning);
-			cb(err);
-		});
-	});
-
-	tasks.push(function (cb) {
-		checkKey({
-			'obj':	exports,
 			'objectKey':	'intercom',
 			'default':	new Intercom('loopback interface'),
 			'defaultLabel':	'loopback interface'
@@ -330,7 +319,7 @@ function saveImage(params, deliveryTag, msgUuid) {
 	// Set image record
 	tasks.push(function (cb) {
 		const	sql	= 'INSERT IGNORE INTO images_images (uuid, slug) VALUES(?,?);',
-			dbFields	= [lUtils.uuidToBuffer(params.data.uuid), params.data.slug];
+			dbFields	= [uuid, params.data.slug];
 
 		db.query(sql, dbFields, function (err) {
 			if (err) return cb(err);
@@ -342,7 +331,7 @@ function saveImage(params, deliveryTag, msgUuid) {
 	// Set slug (We do this in case it changed on an already existing entry)
 	tasks.push(function (cb) {
 		const	sql	= 'UPDATE images_images SET slug = ? WHERE uuid = ?;',
-			dbFields	= [params.data.slug, lUtils.uuidToBuffer(params.data.uuid)];
+			dbFields	= [params.data.slug, uuid];
 
 		db.query(sql, dbFields, cb);
 	});
@@ -351,7 +340,7 @@ function saveImage(params, deliveryTag, msgUuid) {
 	if (params.data.file && params.data.file.type) {
 		tasks.push(function (cb) {
 			const	sql	= 'UPDATE images_images SET type = ? WHERE uuid = ?;',
-				dbFields	= [params.data.file.type, lUtils.uuidToBuffer(params.data.uuid)];
+				dbFields	= [params.data.file.type, uuid];
 
 			db.query(sql, dbFields, cb);
 		});
@@ -360,7 +349,7 @@ function saveImage(params, deliveryTag, msgUuid) {
 	// Save metadata
 	// First delete all existing metadata about this image
 	tasks.push(function (cb) {
-		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', [lUtils.uuidToBuffer(params.data.uuid)], cb);
+		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', uuid, cb);
 	});
 
 	// Insert new metadata
@@ -372,7 +361,7 @@ function saveImage(params, deliveryTag, msgUuid) {
 
 			for (let i = 0; params.data.metadata[i] !== undefined; i ++) {
 				sql += '(?,?,?),';
-				dbFields.push(lUtils.uuidToBuffer(params.data.uuid));
+				dbFields.push(uuid);
 				dbFields.push(params.data.metadata[i].name);
 				dbFields.push(params.data.metadata[i].data);
 			}

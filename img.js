@@ -19,6 +19,8 @@ const	topLogPrefix	= 'larvitimages: img.js: ',
 
 let	config;
 
+dataWriter.options	= {};
+
 if (fs.existsSync(process.cwd() + '/config/images.json')) {
 	config	= require(process.cwd() + '/config/images.json');
 } else {
@@ -438,11 +440,21 @@ function getImages(options, cb) {
 		// Only get posts with given ids
 		if (options.uuids !== undefined) {
 			sql += '	AND images.uuid IN (';
-
 			for (let i = 0; options.uuids[i] !== undefined; i ++) {
-				const	uuid	= String(options.uuids[i]);
-				sql += '?,';
-				dbFields.push(uuid);
+				if (Buffer.isBuffer(options.uuids[i])) {
+					sql += '?,';
+					dbFields.push(options.uuids[i]);
+				} else {
+					const	uuid	= lUtils.uuidToBuffer(options.uuids[i]);
+
+					if (uuid !== false) {
+						sql += '?,';
+						dbFields.push(uuid);
+					} else {
+						sql += '?,';
+						dbFields.push('no match due to bad uuid');
+					}
+				}
 			}
 
 			sql = sql.substring(0, sql.length - 1) + ')\n';
@@ -662,6 +674,8 @@ function saveImage(data, cb) {
 
 	// If we have an image file, make sure the format is correct
 	if (data.file !== undefined) {
+		log.debug(logPrefix + 'data.file missing');
+
 		if ( ! data.file.bin && data.file.path) {
 			// Read binary data if it is not read already
 
@@ -750,7 +764,7 @@ function saveImage(data, cb) {
 
 		// Set image type
 		tasks.push(function (cb) {
-			data.file.type = imgType.ext;
+			data.file.type	= imgType.ext;
 			cb();
 		});
 	}
