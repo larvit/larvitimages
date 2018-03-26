@@ -19,6 +19,7 @@ exports.run = function (req, res, cb) {
 
 	options.limit	= data.pagination.elementsPerPage;
 	options.offset	= parseInt(data.global.urlParsed.query.offset)	|| 0;
+	options.q	= data.global.urlParsed.query.q;
 
 	if (isNaN(options.offset) || options.offset < 0) {
 		options.offset = 0;

@@ -413,6 +413,15 @@ function getImages(options, cb) {
 
 		sql +=	'WHERE 1 + 1\n';
 
+		if (options.q !== undefined) {
+			sql += ' AND (\n';
+			sql += '   uuid IN (SELECT imageUuid FROM images_images_metadata WHERE data LIKE ?)\n';
+			sql += '   OR slug LIKE ?\n';
+			sql += ')\n';
+			dbFields.push('%' + options.q + '%');
+			dbFields.push('%' + options.q + '%');
+		}
+
 		// Only get images with the current slugs
 		if (options.slugs !== undefined) {
 			if (options.slugs.length === 0) {

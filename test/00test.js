@@ -364,6 +364,63 @@ describe('LarvitImages', function () {
 		});
 	});
 
+	it('should get image by query', function (done) {
+		const	tasks	= [];
+
+		let saveObj = { 'file': { 'name': 'testimage55.jpg' }, 'metadata': [
+			{
+				'name': 'party',
+				'data': 'fun'
+			},
+			{
+				'name': 'work',
+				'data': 'boring'
+			}
+		]};
+
+		// Create testimage
+		tasks.push(function (cb) {
+			new jimp(256, 256, 0xFF0000FF, function (err, image) {
+				if (err) throw err;
+
+				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
+					if (err) throw err;
+					saveObj.file.bin	= result;
+					cb();
+				});
+			});
+		});
+
+		// Save test image
+		tasks.push(function (cb) {
+			img.saveImage(saveObj, function (err, image) {
+				if (err) throw err;
+				saveObj.uuid	= image.uuid;
+				cb();
+			});
+		});
+
+		// Get saved image
+		tasks.push(function (cb) {
+			const options = {
+				'q':	'ring',
+				'includeBinaryData':	true
+			};
+			img.getImages(options, function (err, images) {
+				if (err) throw err;
+				let	image	= images[Object.keys(images)[0]];
+				assert(bufferEqual(image.image, saveObj.file.bin));
+				assert.strictEqual(saveObj.file.name, image.slug);
+				cb();
+			});
+		});
+
+		async.series(tasks, function (err) {
+			if (err) throw err;
+			done();
+		});
+	});
+
 	it('should get only binary by slug', function (done) {
 		const	tasks	= [];
 
