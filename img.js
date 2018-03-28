@@ -46,6 +46,9 @@ if (config.storagePath !== undefined) {
  * @return str
  */
 function getPathToImage(uuid, cache) {
+
+	if ( ! uuid || typeof uuid !== 'string') return false;
+
 	if (cache) {
 		return exports.cacheDir + '/' + uuid.substr(0, 4).split('').join('/') + '/';
 	} else {
@@ -85,6 +88,12 @@ function createImageDirectory(uuid, cache, cb) {
 	}
 
 	path	= getPathToImage(uuid, cache);
+
+	if (path === false) {
+		const e = new Error('Could not get path to file with uuid "' + uuid + '"');
+		log.warn(logPrefix + e.message);
+		return cb(e);
+	}
 
 	if ( ! fs.existsSync(path)) {
 		mkdirp(path, function (err) {
@@ -174,9 +183,19 @@ function clearCache(options, cb) {
 
 		// Check if the folder exists at all
 		tasks.push(function (cb) {
+			let path;
+
 			if (exists === false) return cb();
 
-			fs.stat(getPathToImage(options.uuid, true), function (err, stats) {
+			path = getPathToImage(options.uuid, true);
+
+			if (path === false) {
+				const e = new Error('Could not get path to file with uuid "' + uuid + '"');
+				log.warn(logPrefix + e.message);
+				return cb(e);
+			}
+
+			fs.stat(path, function (err, stats) {
 				if (err && err.code === 'ENOENT') {
 					exists	= false;
 					return cb();
@@ -194,9 +213,19 @@ function clearCache(options, cb) {
 		tasks.push(function (cb) {
 			const	tasks	= [];
 
+			let path;
+
 			if (exists === false) return cb();
 
-			fs.readdir(getPathToImage(options.uuid, true), function (err, files) {
+			path = getPathToImage(options.uuid, true);
+
+			if (path === false) {
+				const e = new Error('Could not get path to file with uuid "' + uuid + '"');
+				log.warn(logPrefix + e.message);
+				return cb(e);
+			}
+
+			fs.readdir(path, function (err, files) {
 				if (err) {
 					log.warn(logPrefix + 'Could not read dir for image uuid: "' + options.uuid + '", err: ' + err.message);
 					return cb(err);
@@ -207,7 +236,7 @@ function clearCache(options, cb) {
 
 					if (fileName.substring(0, options.uuid.length) === options.uuid) {
 						tasks.push(function (cb) {
-							fs.unlink(getPathToImage(options.uuid, true) + fileName, function (err) {
+							fs.unlink(path + fileName, function (err) {
 								if (err) {
 									log.warn(logPrefix + 'Could not remove file: "' + fileName + '", err: ' + err.message);
 								}
@@ -235,7 +264,9 @@ function getImageBin(options, cb) {
 		uuid;
 
 	getImages({'slugs': options.slug}, function (err, images) {
-		let	image;
+		let	image,
+			oPath,
+			cPath;
 
 		if (err) return cb(err);
 
@@ -245,10 +276,19 @@ function getImageBin(options, cb) {
 			image	= images[Object.keys(images)[0]];
 		}
 
+		oPath = getPathToImage(image.uuid, false);
+		cPath = getPathToImage(image.uuid, true);
+
+		if (oPath === false || cPath === false) {
+			const e = new Error('Could not get path to file with uuid "' + image.uuid + '"');
+			log.warn(logPrefix + e.message);
+			return cb(e);
+		}
+
 		uuid	= image.uuid;
 		imgType	=	image.type;
-		originalFile	= getPathToImage(uuid, false) + uuid + '.' + imgType;
-		cachedFile	= getPathToImage(uuid, true) + uuid; // imgType is added later
+		originalFile	= oPath + uuid + '.' + imgType;
+		cachedFile	= cPath + uuid; // imgType is added later
 		fileToLoad	= originalFile; // Default to fetching the original file
 
 		// If custom width and/or height, use cached file instead
@@ -617,7 +657,15 @@ function rmImage(uuid, cb) {
 	if (dataWriter.mode !== 'slave') {
 		// Delete actual file
 		tasks.push(function (cb) {
-			fs.unlink(getPathToImage(uuid) + uuid + '.' + type, cb);
+			const path = getPathToImage(uuid);
+
+			if (path === false) {
+				const e = new Error('Could not get path to file with uuid "' + uuid + '"');
+				log.warn(logPrefix + e.message);
+				return cb(e);
+			}
+
+			fs.unlink(path + uuid + '.' + type, cb);
 		});
 
 		tasks.push(function (cb) {
