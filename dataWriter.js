@@ -328,6 +328,21 @@ function saveImage(params, deliveryTag, msgUuid) {
 		});
 	});
 
+	// Check if a record was created with our slug and uuid
+	// In case the slug was already taken this have not happened and we need to return an error
+	tasks.push(function (cb) {
+		db.query('SELECT slug FROM images_images WHERE uuid = ?', uuid, function (err, rows) {
+			if (err) return cb(err);
+
+			if (rows.length === 0) {
+				const	err	= new Error('Slug was already taken (or other unknown error)');
+				log.info(logPrefix + err.message);
+				return cb(err);
+			}
+			cb(); // All is well, move on
+		});
+	});
+
 	// Set slug (We do this in case it changed on an already existing entry)
 	tasks.push(function (cb) {
 		const	sql	= 'UPDATE images_images SET slug = ? WHERE uuid = ?;',
