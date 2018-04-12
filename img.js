@@ -746,6 +746,12 @@ function saveImage(data, cb) {
 		} else if (data.file.bin && ! data.file.path) {
 			// Save bin data to temp file if no path was provided
 
+			if (imageType(data.file.bin) === null) {
+				const	err	= new Error('Could not determine image type from data, can not save');
+				log.warn(logPrefix + err.message);
+				return cb(err);
+			}
+
 			tmpFilePath	= os.tmpdir() + '/' + uuidLib.v1() + '.' + imageType(data.file.bin).ext;
 
 			tasks.push(function (cb) {
