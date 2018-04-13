@@ -46,7 +46,6 @@ if (config.storagePath !== undefined) {
  * @return str
  */
 function getPathToImage(uuid, cache) {
-
 	if ( ! uuid || typeof uuid !== 'string') return false;
 
 	if (cache) {
@@ -871,7 +870,9 @@ function saveImage(data, cb) {
 			if (err) return cb(err);
 
 			if (rows.length) {
-				return cb(new Error('Slug is used by another image entry, try setting another one manually.'));
+				const	err	= new Error('Slug: "' + data.slug + '" is used by another image entry, try setting another one manually.');
+				log.verbose(logPrefix + err.message);
+				return cb(err);
 			}
 
 			cb();
