@@ -1,12 +1,12 @@
 'use strict';
 
-const	mime	= require('mime-types'),
-	logPrefix 	= 'larvitimages: controllers/serveDbImages.js - ',
-	path	= require('path'),
+const	logPrefix	= 'larvitimages: controllers/serveDbImages.js - ',
+	crypto	= require('crypto'),
 	async	= require('async'),
+	mime	= require('mime-types'),
+	path	= require('path'),
 	log	= require('winston'),
 	img	= require('larvitimages'),
-	crypto	= require('crypto'),
 	fs	= require('fs');
 
 function generateEtag(path) {
@@ -15,7 +15,7 @@ function generateEtag(path) {
 	if ( ! fs.existsSync(path)) return false;
 
 	try {
-		stats = fs.statSync(path);
+		stats	= fs.statSync(path);
 		return crypto.createHash('md5').update(stats.mtime.toString() + stats.size.toString() + stats.ino.toString()).digest('hex');
 	} catch (err) {
 		log.warn(logPrefix + 'generateEtag() - Failed to generate etag for file "' + path + '": ' + err.message);
@@ -27,15 +27,15 @@ exports.run = function (req, res) {
 	const	slug	= path.parse(req.urlParsed.pathname).base,
 		tasks	= [];
 
-	let	imgMime,
-		responseSent = false;
+	let	responseSent = false,
+		imgMime;
 
 	if (req.headers && req.headers['if-none-match'] !== undefined) {
 
 		tasks.push(function (cb) {
 			img.getImages({'slugs': [slug]}, function (err, images) {
-				let image,
-					imagePath;
+				let	imagePath,
+					image;
 
 				if (err) {
 					log.warn(logPrefix + err.message);
@@ -44,10 +44,10 @@ exports.run = function (req, res) {
 
 				if (Object.keys(images).length === 0) return cb();
 
-				image = images[Object.keys(images)[0]];
+				image	= images[Object.keys(images)[0]];
 
 				if (req.urlParsed.query.width !== undefined || req.urlParsed.query.height !== undefined) {
-					let pathToFile = img.getPathToImage(image.uuid, true);
+					let	pathToFile	= img.getPathToImage(image.uuid, true);
 
 					pathToFile += image.uuid;
 
@@ -57,18 +57,18 @@ exports.run = function (req, res) {
 					pathToFile += ('.' + image.type);
 
 					if (fs.existsSync(pathToFile)) {
-						imagePath = pathToFile;
+						imagePath	= pathToFile;
 					}
 				}
 
 				if ( ! imagePath) {
-					imagePath = img.getPathToImage(image.uuid, false) + slug;
+					imagePath	= img.getPathToImage(image.uuid, false) + slug;
 				}
 
 				if (generateEtag(imagePath) === req.headers['if-none-match']) {
 					res.writeHead(304, 'Not Modified');
 					res.end();
-					responseSent = true;
+					responseSent	= true;
 				}
 
 				cb();
@@ -80,7 +80,6 @@ exports.run = function (req, res) {
 		if (responseSent) return cb();
 
 		img.getImageBin({'slug': slug, 'width': req.urlParsed.query.width, 'height': req.urlParsed.query.height}, function (err, imgBuf, filePath) {
-
 			if (err) {
 				log.info('larvitimages: controllers/serveDbImages.js - slug: "' + slug + '" err from img.getImageBin(): ' + err.message);
 				res.writeHead(500, {'Content-Type': 'text/plain' });
@@ -94,11 +93,11 @@ exports.run = function (req, res) {
 				return cb();
 			}
 
-			imgMime = mime.lookup(slug) || 'application/octet-stream';
+			imgMime	= mime.lookup(slug) || 'application/octet-stream';
 			res.setHeader('Cache-Control', ['public', 'max-age=900']);
 
 			try {
-				const stats = fs.statSync(filePath);
+				const	stats	= fs.statSync(filePath);
 				res.setHeader('Last-Modified', stats.mtime);
 				res.setHeader('ETag', generateEtag(filePath));
 			} catch (err) {

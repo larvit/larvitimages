@@ -93,10 +93,9 @@ exports.run = function (req, res, cb) {
 				cb();
 			});
 		});
-	}
 
 	// Load data from database
-	else if (imgUuid !== undefined) {
+	} else if (imgUuid !== undefined) {
 		tasks.push(function (cb) {
 			img.getImages({'uuids': imgUuid}, function (err, images) {
 				if (err) return cb(err);

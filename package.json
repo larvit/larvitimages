@@ -1,5 +1,5 @@
 {
-  "version": "0.9.15",
+  "version": "0.9.16",
   "author": {
     "name": "Mikael 'Lilleman' Göransson",
     "email": "lilleman@larvit.se",
@@ -24,14 +24,14 @@
     "mkdirp": "^0.5.1",
     "rimraf": "^2.6.1",
     "uuid": "^3.0.1",
-    "uuid-validate": "0.0.2",
     "winston": "^2.2.0"
   },
   "description": "Image resizing, admin page and database for images meta data.",
   "devDependencies": {
-    "eslint": "^4.8.0",
+    "eslint": "^5.1.0",
     "mocha": "^5.1.1",
-    "mocha-eslint": "^4.1.0"
+    "mocha-eslint": "^4.1.0",
+    "uuid-validate": "0.0.3"
   },
   "keywords": [
     "img",

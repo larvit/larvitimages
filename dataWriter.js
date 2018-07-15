@@ -29,11 +29,11 @@ function listenToQueue(retries, cb) {
 	}
 
 	if (typeof cb !== 'function') {
-		cb = function (){};
+		cb	= function () {};
 	}
 
 	if (retries === undefined) {
-		retries = 0;
+		retries	= 0;
 	}
 
 	tasks.push(function (cb) {
@@ -133,7 +133,7 @@ function ready(retries, cb) {
 	}
 
 	if (typeof cb !== 'function') {
-		cb = function (){};
+		cb	= function () {};
 	}
 
 	if (retries === undefined) {

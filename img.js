@@ -1,7 +1,6 @@
 'use strict';
 
 const	topLogPrefix	= 'larvitimages: img.js: ',
-	uuidValidate	= require('uuid-validate'),
 	dataWriter	= require(__dirname + '/dataWriter.js'),
 	imageType	= require('image-type'),
 	uuidLib	= require('uuid'),
@@ -28,9 +27,9 @@ if (fs.existsSync(process.cwd() + '/config/images.json')) {
 }
 
 if (config.cachePath !== undefined) {
-	exports.cacheDir = config.cachePath;
+	exports.cacheDir	= config.cachePath;
 } else {
-	exports.cacheDir = os.tmpdir() + '/larvitimages_cache';
+	exports.cacheDir	= os.tmpdir() + '/larvitimages_cache';
 }
 
 if (config.storagePath !== undefined) {
@@ -80,7 +79,7 @@ function createImageDirectory(uuid, cache, cb) {
 		return cb(err);
 	}
 
-	if ( ! uuidValidate(uuid, 4)) {
+	if (String(uuid).match(/^[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}$/) === null) {
 		const	err	= new Error('Invalid uuid');
 		log.warn(logPrefix + err.message);
 		return cb(err);
@@ -89,9 +88,9 @@ function createImageDirectory(uuid, cache, cb) {
 	path	= getPathToImage(uuid, cache);
 
 	if (path === false) {
-		const e = new Error('Could not get path to file with uuid "' + uuid + '"');
-		log.warn(logPrefix + e.message);
-		return cb(e);
+		const	err	= new Error('Could not get path to file with uuid: "' + uuid + '"');
+		log.warn(logPrefix + err.message);
+		return cb(err);
 	}
 
 	if ( ! fs.existsSync(path)) {
@@ -135,7 +134,7 @@ function clearCache(options, cb) {
 	}
 
 	if (typeof cb !== 'function') {
-		cb	= function (){};
+		cb	= function () {};
 	}
 
 	if (options.clearAll) {
@@ -720,7 +719,7 @@ function saveImage(data, cb) {
 
 	// If id is missing, we MUST have a file
 	if (data.uuid === undefined && data.file === undefined) {
-		log.info(logPrefix + 'Upload file is missing, but required since no ID is supplied.');
+		log.info(logPrefix + 'Upload file is missing, but required since no uuid is supplied.');
 		return cb(new Error('Image file is required'));
 	}
 
@@ -859,7 +858,7 @@ function saveImage(data, cb) {
 		}
 
 		// Make sure it is not occupied by another image
-		sql = 'SELECT uuid FROM images_images WHERE slug = ?';
+		sql	= 'SELECT uuid FROM images_images WHERE slug = ?';
 		dbFields.push(data.slug);
 		if (data.uuid !== undefined) {
 			sql += ' AND uuid != ?';

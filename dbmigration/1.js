@@ -94,10 +94,13 @@ exports = module.exports = function (cb) {
 
 						uuidsToIds[uuid]	= row.id;
 
-						if	(row.slug.substring(row.slug.length - 3).toLowerCase() === 'jpg') { type = 'jpg'; }
-						else if	(row.slug.substring(row.slug.length - 3).toLowerCase() === 'png') { type = 'png'; }
-						else if	(row.slug.substring(row.slug.length - 3).toLowerCase() === 'gif') { type = 'gif'; }
-						else {
+						if (row.slug.substring(row.slug.length - 3).toLowerCase() === 'jpg') {
+							type	= 'jpg';
+						} else if (row.slug.substring(row.slug.length - 3).toLowerCase() === 'png') {
+							type	= 'png';
+						} else if (row.slug.substring(row.slug.length - 3).toLowerCase() === 'gif') {
+							type	= 'gif';
+						} else {
 							const	err	= new Error('No valid type found for slug: "' + row.slug + '" with id: "' + row.id + '"');
 							log.error(logPrefix + err.message);
 							return cb(err);
