@@ -655,15 +655,21 @@ function rmImage(uuid, cb) {
 	if (dataWriter.mode !== 'slave') {
 		// Delete actual file
 		tasks.push(function (cb) {
-			const path = getPathToImage(uuid);
+			const	path	= getPathToImage(uuid),
+				fullPath	= path + uuid + '.' + type;
 
 			if (path === false) {
-				const e = new Error('Could not get path to file with uuid "' + uuid + '"');
-				log.warn(logPrefix + e.message);
-				return cb(e);
+				const	err	= new Error('Could not get path to file with uuid "' + uuid + '"');
+				log.warn(logPrefix + err.message);
+				return cb(err);
 			}
 
-			fs.unlink(path + uuid + '.' + type, cb);
+			fs.unlink(fullPath, function (err) {
+				if (err) {
+					log.warn(logPrefix + 'Could not unlink file: "' + fullPath + '", err: ' + err.message);
+				}
+				cb();
+			});
 		});
 
 		tasks.push(function (cb) {
