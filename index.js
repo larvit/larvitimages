@@ -1,41 +1,75 @@
 'use strict';
 
-const	topLogPrefix	= 'larvitimages: img.js: ',
-	dataWriter	= require(__dirname + '/dataWriter.js'),
+const	topLogPrefix	= 'larvitimages: index.js: ',
+	DataWriter	= require(__dirname + '/dataWriter.js'),
 	imageType	= require('image-type'),
+	Intercom	= require('larvitamintercom'),
 	uuidLib	= require('uuid'),
 	mkdirp	= require('mkdirp'),
-	lUtils	= require('larvitutils'),
+	LUtils	= require('larvitutils'),
+	lUtils	= new LUtils(),
 	async	= require('async'),
 	slug	= require('larvitslugify'),
 	path	= require('path'),
 	jimp	= require('jimp'),
-	log	= require('winston'),
 	os	= require('os'),
 	fs	= require('fs-extra'),
-	db	= require('larvitdb'),
 	_	= require('lodash');
 
-let	config;
+function Img(options) {
+	const	logPrefix	= topLogPrefix + 'Img() - ',
+		that	= this;
 
-dataWriter.options	= {};
+	that.options	= options || {};
 
-if (fs.existsSync(process.cwd() + '/config/images.json')) {
-	config	= require(process.cwd() + '/config/images.json');
-} else {
-	config = {};
-}
+	if ( ! that.options.db) {
+		throw new Error('Required option db is missing');
+	}
+	that.db	= that.options.db;
 
-if (config.cachePath !== undefined) {
-	exports.cacheDir	= config.cachePath;
-} else {
-	exports.cacheDir	= os.tmpdir() + '/larvitimages_cache';
-}
+	if ( ! that.options.log) {
+		that.options.log	= new lUtils.Log();
+	}
+	that.log	= that.options.log;
 
-if (config.storagePath !== undefined) {
-	exports.storagePath = config.storagePath;
-} else {
-	exports.storagePath = process.cwd() + '/larvitimages';
+	if ( ! that.options.cacheDir) {
+		that.options.cacheDir	= os.tmpdir() + '/larvitimages_cache';
+	}
+	that.cacheDir	= that.options.cacheDir;
+
+	if ( ! that.options.storagePath) {
+		that.options.storagePath	= process.cwd() + '/larvitimages';
+	}
+	that.storagePath	= that.options.storagePath;
+
+	if ( ! that.options.exchangeName) {
+		that.options.exchangeName	= 'larvitimages';
+	}
+
+	if ( ! that.options.mode) {
+		that.log.info(logPrefix + 'No "mode" option given, defaulting to "noSync"');
+		that.options.mode	= 'noSync';
+	} else if (['noSync', 'master', 'slave'].indexOf(that.options.mode) === - 1) {
+		const	err	= new Error('Invalid "mode" option given: "' + that.options.mode + '"');
+		that.log.error(logPrefix + err.message);
+		throw err;
+	}
+
+	if ( ! that.options.intercom) {
+		that.log.info(logPrefix + 'No "intercom" option given, defaulting to "loopback interface"');
+		that.options.intercom	= new Intercom('loopback interface');
+	}
+
+	that.dataWriter	= new DataWriter({
+		'exchangeName':	that.options.exchangeName,
+		'intercom':	that.options.intercom,
+		'mode':	that.options.mode,
+		'log':	that.options.log,
+		'db':	that.db,
+		'amsync_host':	that.options.amsync_host || null,
+		'amsync_minPort':	that.options.amsync_minPort || null,
+		'amsync_maxPort':	that.options.amsync_maxPort || null
+	});
 }
 
 /**
@@ -44,15 +78,15 @@ if (config.storagePath !== undefined) {
  * @param str	- 'd893b68d-bb64-40ac-bec7-14e640a235a6'
  * @return str
  */
-function getPathToImage(uuid, cache) {
+Img.prototype.getPathToImage = function getPathToImage(uuid, cache) {
 	if ( ! uuid || typeof uuid !== 'string') return false;
 
 	if (cache) {
-		return exports.cacheDir + '/' + uuid.substr(0, 4).split('').join('/') + '/';
+		return that.cacheDir + '/' + uuid.substr(0, 4).split('').join('/') + '/';
 	} else {
-		return exports.storagePath + '/' + uuid.substr(0, 4).split('').join('/') + '/';
+		return that.storagePath + '/' + uuid.substr(0, 4).split('').join('/') + '/';
 	}
-}
+};
 
 /**
  * Get path to image
@@ -62,8 +96,9 @@ function getPathToImage(uuid, cache) {
  * @param func cb	- callback(err, path)
  *
  */
-function createImageDirectory(uuid, cache, cb) {
-	const	logPrefix	= topLogPrefix + 'createImageDirectory() - ';
+Img.prototype.createImageDirectory = function createImageDirectory(uuid, cache, cb) {
+	const	logPrefix	= topLogPrefix + 'createImageDirectory() - ',
+		that	= this;
 
 	let	path	= '';
 
@@ -73,15 +108,15 @@ function createImageDirectory(uuid, cache, cb) {
 	}
 
 	// Check if storage path is defined and set it.
-	if (exports.storagePath === undefined) {
+	if (that.storagePath === undefined) {
 		const	err	 = new Error('No defined path for storing images.');
-		log.warn(logPrefix + err.message);
+		that.log.warn(logPrefix + err.message);
 		return cb(err);
 	}
 
 	if (String(uuid).match(/^[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}$/) === null) {
 		const	err	= new Error('Invalid uuid');
-		log.warn(logPrefix + err.message);
+		that.log.warn(logPrefix + err.message);
 		return cb(err);
 	}
 
@@ -89,16 +124,16 @@ function createImageDirectory(uuid, cache, cb) {
 
 	if (path === false) {
 		const	err	= new Error('Could not get path to file with uuid: "' + uuid + '"');
-		log.warn(logPrefix + err.message);
+		that.log.warn(logPrefix + err.message);
 		return cb(err);
 	}
 
 	if ( ! fs.existsSync(path)) {
 		mkdirp(path, function (err) {
 			if (err) {
-				log.error(logPrefix + 'Could not create folder: "' + path + '" err: ' + err.message);
+				that.log.error(logPrefix + 'Could not create folder: "' + path + '" err: ' + err.message);
 			} else {
-				log.debug(logPrefix + 'Folder "' + path + '" created');
+				that.log.debug(logPrefix + 'Folder "' + path + '" created');
 			}
 
 			cb(err, path);
@@ -106,7 +141,7 @@ function createImageDirectory(uuid, cache, cb) {
 	} else {
 		cb(null, path);
 	}
-}
+};
 
 /**
  * Clear Cache
@@ -118,9 +153,10 @@ function createImageDirectory(uuid, cache, cb) {
  *	}
  * @param func cb - callback(err)
  */
-function clearCache(options, cb) {
+Img.prototype.clearCache = function clearCache(options, cb) {
 	const	logPrefix	= topLogPrefix + 'clearCache() - ',
-		tasks	= [];
+		tasks	= [],
+		that	= this;
 
 	let	exists;
 
@@ -139,12 +175,12 @@ function clearCache(options, cb) {
 
 	if (options.clearAll) {
 		tasks.push(function (cb) {
-			fs.stat(exports.cacheDir, function (err, stats) {
+			fs.stat(that.cacheDir, function (err, stats) {
 				if (err && err.code === 'ENOENT') {
 					exists	= false;
 					return cb();
 				} else if (err) {
-					log.error(logPrefix + 'Unknown error when fs.stat(' + exports.cacheDir + '): ' + err.message);
+					that.log.error(logPrefix + 'Unknown error when fs.stat(' + that.cacheDir + '): ' + err.message);
 					return cb(err);
 				}
 
@@ -155,24 +191,24 @@ function clearCache(options, cb) {
 
 		// Delete
 		tasks.push(function (cb) {
-			fs.remove(exports.cacheDir, cb);
+			fs.remove(that.cacheDir, cb);
 		});
 	} else {
 
 		// If no uuid is given get image data by slug.
 		if (options.uuid === undefined) {
 			tasks.push(function (cb) {
-				getImages({'slugs': [options.slug]}, function (err, image) {
+				that.getImages({'slugs': [options.slug]}, function (err, image) {
 					if (err) {
-						log.warn(logPrefix + 'Could not run getImages(), err: ' + err.message);
+						that.log.warn(logPrefix + 'Could not run getImages(), err: ' + err.message);
 						return cb(err);
 					}
 
 					if (Object.keys(image).length === 0) {
-						log.warn(logPrefix + 'No image found in database with slug: ' +  options.slug);
+						that.log.warn(logPrefix + 'No image found in database with slug: ' +  options.slug);
 						exists = false;
 					} else {
-						options.uuid = lUtils.formatUuid(image[Object.keys(image)[0]].uuid);
+						options.uuid	= lUtils.formatUuid(image[Object.keys(image)[0]].uuid);
 					}
 					cb();
 				});
@@ -185,12 +221,12 @@ function clearCache(options, cb) {
 
 			if (exists === false) return cb();
 
-			path = getPathToImage(options.uuid, true);
+			path	= getPathToImage(options.uuid, true);
 
 			if (path === false) {
-				const e = new Error('Could not get path to file with uuid "' + uuid + '"');
-				log.warn(logPrefix + e.message);
-				return cb(e);
+				const	err	= new Error('Could not get path to file with uuid "' + uuid + '"');
+				that.log.warn(logPrefix + err.message);
+				return cb(err);
 			}
 
 			fs.stat(path, function (err, stats) {
@@ -198,7 +234,7 @@ function clearCache(options, cb) {
 					exists	= false;
 					return cb();
 				} else if (err) {
-					log.error(logPrefix + 'Unknown error when fs.stat(' + exports.cacheDir + '): ' + err.message);
+					that.log.error(logPrefix + 'Unknown error when fs.stat(' + that.cacheDir + '): ' + err.message);
 					return cb(err);
 				}
 
@@ -211,21 +247,21 @@ function clearCache(options, cb) {
 		tasks.push(function (cb) {
 			const	tasks	= [];
 
-			let path;
+			let	path;
 
 			if (exists === false) return cb();
 
-			path = getPathToImage(options.uuid, true);
+			path	= getPathToImage(options.uuid, true);
 
 			if (path === false) {
-				const e = new Error('Could not get path to file with uuid "' + uuid + '"');
-				log.warn(logPrefix + e.message);
-				return cb(e);
+				const	err	= new Error('Could not get path to file with uuid "' + uuid + '"');
+				that.log.warn(logPrefix + err.message);
+				return cb(err);
 			}
 
 			fs.readdir(path, function (err, files) {
 				if (err) {
-					log.warn(logPrefix + 'Could not read dir for image uuid: "' + options.uuid + '", err: ' + err.message);
+					that.log.warn(logPrefix + 'Could not read dir for image uuid: "' + options.uuid + '", err: ' + err.message);
 					return cb(err);
 				}
 
@@ -236,7 +272,7 @@ function clearCache(options, cb) {
 						tasks.push(function (cb) {
 							fs.unlink(path + fileName, function (err) {
 								if (err) {
-									log.warn(logPrefix + 'Could not remove file: "' + fileName + '", err: ' + err.message);
+									that.log.warn(logPrefix + 'Could not remove file: "' + fileName + '", err: ' + err.message);
 								}
 								cb(err);
 							});
@@ -250,10 +286,11 @@ function clearCache(options, cb) {
 	}
 
 	async.series(tasks, cb);
-}
+};
 
-function getImageBin(options, cb) {
-	const	logPrefix	= topLogPrefix + 'getImageBin() - ';
+Img.prototype.getImageBin = function getImageBin(options, cb) {
+	const	logPrefix	= topLogPrefix + 'getImageBin() - ',
+		that	= this;
 
 	let	originalFile,
 		cachedFile,
@@ -261,7 +298,7 @@ function getImageBin(options, cb) {
 		imgType,
 		uuid;
 
-	getImages({'slugs': options.slug}, function (err, images) {
+	that.getImages({'slugs': options.slug}, function (err, images) {
 		let	image,
 			oPath,
 			cPath;
@@ -274,13 +311,13 @@ function getImageBin(options, cb) {
 			image	= images[Object.keys(images)[0]];
 		}
 
-		oPath = getPathToImage(image.uuid, false);
-		cPath = getPathToImage(image.uuid, true);
+		oPath	= getPathToImage(image.uuid, false);
+		cPath	= getPathToImage(image.uuid, true);
 
 		if (oPath === false || cPath === false) {
-			const e = new Error('Could not get path to file with uuid "' + image.uuid + '"');
-			log.warn(logPrefix + e.message);
-			return cb(e);
+			const	err	= new Error('Could not get path to file with uuid "' + image.uuid + '"');
+			that.log.warn(logPrefix + err.message);
+			return cb(err);
 		}
 
 		uuid	= image.uuid;
@@ -320,13 +357,13 @@ function getImageBin(options, cb) {
 					imgHeight;
 
 				if (err) {
-					log.warn(locLogPrefix + 'Could not read file "' + originalFile + '", err: ' + err.message);
+					that.log.warn(locLogPrefix + 'Could not read file "' + originalFile + '", err: ' + err.message);
 					return cb(err);
 				}
 
 				if ( ! options.width && ! options.height) {
 					const	err	= new Error('Cannot create new file without custom height or width. Should\'ve loaded the original file instead');
-					log.warn(locLogPrefix + err.message);
+					that.log.warn(locLogPrefix + err.message);
 					return cb(err);
 				}
 
@@ -336,40 +373,40 @@ function getImageBin(options, cb) {
 
 				// Set the missing height or width if only one is given
 				if (options.width && ! options.height) {
-					options.height = Math.round(options.width / imgRatio);
+					options.height	= Math.round(options.width / imgRatio);
 				}
 
 				if (options.height && ! options.width) {
-					options.width = Math.round(options.height * imgRatio);
+					options.width	= Math.round(options.height * imgRatio);
 				}
 
 				if ( ! lUtils.isInt(options.height) || ! lUtils.isInt(options.width)) {
-					const err = new Error('Options.height or options.width is not an integer. Options: ' + JSON.stringify(options));
-					log.warn(locLogPrefix + err.message);
+					const	err	= new Error('Options.height or options.width is not an integer. Options: ' + JSON.stringify(options));
+					that.log.warn(locLogPrefix + err.message);
 					return cb(err);
 				}
 
 				image.resize(Number(options.width), Number(options.height), function (err, image) {
 					if (err) {
-						log.warn(locLogPrefix + 'Could not resize image, err: ' + err.message);
+						that.log.warn(locLogPrefix + 'Could not resize image, err: ' + err.message);
 						return cb(err);
 					}
 
 					image.quality(90, function (err, image) {
 						if (err) {
-							log.warn(locLogPrefix + 'Could not set image quality to 90, err: ' + err.message);
+							that.log.warn(locLogPrefix + 'Could not set image quality to 90, err: ' + err.message);
 							return cb(err);
 						}
 
 						mkdirp(path.dirname(cachedFile), function (err) {
 							if (err && err.message.substring(0, 6) !== 'EEXIST') {
-								log.warn(locLogPrefix + 'could not mkdirp "' + path.dirname(cachedFile) + '", err: ' + err.message);
+								that.log.warn(locLogPrefix + 'could not mkdirp "' + path.dirname(cachedFile) + '", err: ' + err.message);
 								return cb(err);
 							}
 
 							image.write(cachedFile, function (err) {
 								if (err) {
-									log.warn(locLogPrefix + 'Could not save image, err: ' + err.message);
+									that.log.warn(locLogPrefix + 'Could not save image, err: ' + err.message);
 								}
 
 								cb(err);
@@ -382,7 +419,7 @@ function getImageBin(options, cb) {
 
 		returnFile(cb);
 	});
-}
+};
 
 /**
  * Get images
@@ -396,12 +433,13 @@ function getImageBin(options, cb) {
  *	}
  * @param func cb - callback(err, images)
  */
-function getImages(options, cb) {
+Img.prototype.getImages = function getImages(options, cb) {
 	const	logPrefix	= topLogPrefix + 'getImages() - ',
 		dbFields	= [],
 		metadata	= [],
 		images	= {},
-		tasks	= [];
+		tasks	= [],
+		that	= this;
 
 	if (typeof options === 'function') {
 		cb	= options;
@@ -444,7 +482,7 @@ function getImages(options, cb) {
 		}
 	}
 
-	log.debug(logPrefix + 'Called with options: "' + JSON.stringify(options) + '"');
+	that.log.debug(logPrefix + 'Called with options: "' + JSON.stringify(options) + '"');
 
 	function generateWhere() {
 		let	sql	= '';
@@ -481,7 +519,7 @@ function getImages(options, cb) {
 				dbFields.push(options.slugs[i]);
 			}
 
-			sql = sql.substring(0, sql.length - 1) + '))\n';
+			sql	= sql.substring(0, sql.length - 1) + '))\n';
 		}
 
 		// Only get posts with given ids
@@ -504,14 +542,14 @@ function getImages(options, cb) {
 				}
 			}
 
-			sql = sql.substring(0, sql.length - 1) + ')\n';
+			sql	= sql.substring(0, sql.length - 1) + ')\n';
 		}
 
 		return sql;
 	}
 
 	tasks.push(function (cb) {
-		dataWriter.ready(cb);
+		that.dataWriter.ready(cb);
 	});
 
 	// Get images
@@ -530,11 +568,11 @@ function getImages(options, cb) {
 			sql += ' OFFSET ' + parseInt(options.offset);
 		}
 
-		db.query(sql, dbFields, function (err, result) {
+		that.db.query(sql, dbFields, function (err, result) {
 			if (err) return cb(err);
 
 			for (let i = 0; result[i] !== undefined; i ++) {
-				images[lUtils.formatUuid(result[i].uuid)] 	= result[i];
+				images[lUtils.formatUuid(result[i].uuid)]	= result[i];
 				images[lUtils.formatUuid(result[i].uuid)].uuid	= lUtils.formatUuid(result[i].uuid);
 				images[lUtils.formatUuid(result[i].uuid)].metadata	= [];
 			}
@@ -549,7 +587,7 @@ function getImages(options, cb) {
 		sql	+= 'SELECT * FROM images_images_metadata as metadata\n';
 		sql	+= 'WHERE imageUuid IN (SELECT images.uuid FROM images_images as images ' + generateWhere() +  ')';
 
-		db.query(sql, dbFields, function (err, result) {
+		that.db.query(sql, dbFields, function (err, result) {
 			for (let i = 0; result[i] !== undefined; i ++) {
 				result[i].imageUuid	= lUtils.formatUuid(result[i].imageUuid);
 				metadata.push(result[i]);
@@ -563,7 +601,7 @@ function getImages(options, cb) {
 			const	imageUuid	= metadata[i].imageUuid;
 
 			if (images[imageUuid] === undefined) {
-				log.verbose(logPrefix + 'Image/metadata missmatch. Metadata with imageUuid "' + imageUuid + '" is not assosciated with any image');
+				that.log.verbose(logPrefix + 'Image/metadata missmatch. Metadata with imageUuid "' + imageUuid + '" is not assosciated with any image');
 				continue;
 			}
 
@@ -574,7 +612,7 @@ function getImages(options, cb) {
 		if (err) return cb(err, images);
 
 		// Get total elements for pagination
-		db.query('SELECT images.uuid, images.slug, COUNT(*) AS count FROM images_images AS images ' + generateWhere(), dbFields, function (err, result) {
+		that.db.query('SELECT images.uuid, images.slug, COUNT(*) AS count FROM images_images AS images ' + generateWhere(), dbFields, function (err, result) {
 			if (err) return cb(err, images);
 
 			if (options.includeBinaryData) {
@@ -604,27 +642,28 @@ function getImages(options, cb) {
 	});
 };
 
-function rmImage(uuid, cb) {
+Img.prototype.rmImage = function rmImage(uuid, cb) {
 	const	logPrefix	= topLogPrefix + 'rmImage() - ',
 		imgUuid	= lUtils.uuidToBuffer(uuid),
-		tasks	= [];
+		tasks	= [],
+		that	= this;
 
 	let	slug,
 		type;
 
 	if ( ! imgUuid) {
 		const	err	= new Error('Invalid uuid');
-		log.warn(logPrefix + err.message);
+		that.log.warn(logPrefix + err.message);
 		return cb(err);
 	}
 
 	tasks.push(function (cb) {
-		dataWriter.ready(cb);
+		that.dataWriter.ready(cb);
 	});
 
 	// Get slug
 	tasks.push(function (cb) {
-		db.query('SELECT * FROM images_images WHERE uuid = ?', imgUuid, function (err, rows) {
+		that.db.query('SELECT * FROM images_images WHERE uuid = ?', imgUuid, function (err, rows) {
 			if (err) return cb(err);
 
 			if (rows.length > 0) {
@@ -645,14 +684,14 @@ function rmImage(uuid, cb) {
 		message.params	= {};
 		message.params.uuid	= uuid;
 
-		dataWriter.intercom.send(message, options, function (err, msgUuid) {
+		that.dataWriter.intercom.send(message, options, function (err, msgUuid) {
 			if (err) return cb(err);
 
-			dataWriter.emitter.once(msgUuid, cb);
+			that.dataWriter.emitter.once(msgUuid, cb);
 		});
 	});
 
-	if (dataWriter.mode !== 'slave') {
+	if (that.options.mode !== 'slave') {
 		// Delete actual file
 		tasks.push(function (cb) {
 			const	path	= getPathToImage(uuid),
@@ -660,13 +699,13 @@ function rmImage(uuid, cb) {
 
 			if (path === false) {
 				const	err	= new Error('Could not get path to file with uuid "' + uuid + '"');
-				log.warn(logPrefix + err.message);
+				that.log.warn(logPrefix + err.message);
 				return cb(err);
 			}
 
 			fs.unlink(fullPath, function (err) {
 				if (err) {
-					log.warn(logPrefix + 'Could not unlink file: "' + fullPath + '", err: ' + err.message);
+					that.log.warn(logPrefix + 'Could not unlink file: "' + fullPath + '", err: ' + err.message);
 				}
 				cb();
 			});
@@ -680,7 +719,7 @@ function rmImage(uuid, cb) {
 	}
 
 	async.series(tasks, cb);
-}
+};
 
 /**
  * Save an image
@@ -702,18 +741,19 @@ function rmImage(uuid, cb) {
  *	}
  * @param func cb(err, image) - the image will be a row from getImages()
  */
-function saveImage(data, cb) {
+Img.prototype.saveImage = function saveImage(data, cb) {
 	const	logObject	= _.cloneDeep(data),
 		logPrefix	= topLogPrefix + 'saveImage() - ',
-		tasks	= [];
+		tasks	= [],
+		that	= this;
 
 	let	tmpFilePath,
 		imgType;
 
 	if ( ! data.file) {
 		const	err	= new Error('Missing file object from formidable');
-		log.warn(logPrefix + err.message);
-		log.verbose(logPrefix + err.stack);
+		that.log.warn(logPrefix + err.message);
+		that.log.verbose(logPrefix + err.stack);
 		return cb(err);
 	}
 
@@ -721,21 +761,21 @@ function saveImage(data, cb) {
 		logObject.file.bin	= 'binary data removed for logging purposes';
 	}
 
-	log.debug(logPrefix + 'Running with data. "' + JSON.stringify(logObject) + '"');
+	that.log.debug(logPrefix + 'Running with data. "' + JSON.stringify(logObject) + '"');
 
 	// If id is missing, we MUST have a file
 	if (data.uuid === undefined && data.file === undefined) {
-		log.info(logPrefix + 'Upload file is missing, but required since no uuid is supplied.');
+		that.log.info(logPrefix + 'Upload file is missing, but required since no uuid is supplied.');
 		return cb(new Error('Image file is required'));
 	}
 
 	tasks.push(function (cb) {
-		dataWriter.ready(cb);
+		that.dataWriter.ready(cb);
 	});
 
 	// If we have an image file, make sure the format is correct
 	if (data.file !== undefined) {
-		log.debug(logPrefix + 'data.file missing');
+		that.log.debug(logPrefix + 'data.file missing');
 
 		if ( ! data.file.bin && data.file.path) {
 			// Read binary data if it is not read already
@@ -752,7 +792,7 @@ function saveImage(data, cb) {
 
 			if (imageType(data.file.bin) === null) {
 				const	err	= new Error('Could not determine image type from data, can not save');
-				log.warn(logPrefix + err.message);
+				that.log.warn(logPrefix + err.message);
 				return cb(err);
 			}
 
@@ -761,7 +801,7 @@ function saveImage(data, cb) {
 			tasks.push(function (cb) {
 				fs.writeFile(tmpFilePath, data.file.bin, function (err) {
 					if (err) {
-						log.warn(logPrefix + 'Could not write to tmpFilePath: "' + tmpFilePath + '", err: ' + err.message);
+						that.log.warn(logPrefix + 'Could not write to tmpFilePath: "' + tmpFilePath + '", err: ' + err.message);
 					}
 					cb(err);
 				});
@@ -769,7 +809,7 @@ function saveImage(data, cb) {
 
 		} else {
 			const	err	= new Error('Neither binary data or file path was given, can not save');
-			log.warn(logPrefix + err.message);
+			that.log.warn(logPrefix + err.message);
 			return cb(err);
 		}
 
@@ -786,26 +826,26 @@ function saveImage(data, cb) {
 
 			// As a first step, check the mime type, since this is already given to us
 			if ( ! imgType || (imageType(data.file.bin).mime !== 'image/png' && imageType(data.file.bin).mime !== 'image/jpeg' && imageType(data.file.bin).mime !== 'image/gif')) {
-				log.info(logPrefix + 'Invalid mime type for uploaded file.');
+				that.log.info(logPrefix + 'Invalid mime type for uploaded file.');
 				return cb(new Error('Invalid file format, must be of image type PNG, JPEG or GIF'));
 			}
 
 			// Resizing gifs not supported by jimp, convert to png instead
 			if (imageType(data.file.bin).mime === 'image/gif') {
-				log.info(logPrefix + 'GIFs not supported. Image will be converted to PNG');
+				that.log.info(logPrefix + 'GIFs not supported. Image will be converted to PNG');
 
 				jimp.read(filePath, function (err, image) {
 					tmpFilePath	= os.tmpdir() + '/' + uuidLib.v1() + '.png';
 
 					if (err) {
-						log.warn(logPrefix + 'Unable to open uploaded file: ' + err.message);
+						that.log.warn(logPrefix + 'Unable to open uploaded file: ' + err.message);
 						return cb(err);
 					}
 
 					// Here you probably could call the cb directly to speed things up
 					image.quality(80).write(tmpFilePath, function (err) {
 						if (err) {
-							log.warn(logPrefix + 'Failed to write file: ' + err.message);
+							that.log.warn(logPrefix + 'Failed to write file: ' + err.message);
 							return cb(err);
 						}
 
@@ -821,7 +861,7 @@ function saveImage(data, cb) {
 				// Then actually checks so the file loads in our image lib
 				jimp.read(filePath, function (err) {
 					if (err) {
-						log.warn(logPrefix + 'Unable to open uploaded file: ' + err.message);
+						that.log.warn(logPrefix + 'Unable to open uploaded file: ' + err.message);
 					}
 
 					cb(err);
@@ -857,9 +897,9 @@ function saveImage(data, cb) {
 
 			// If the image was a gif it has been changed to a png and the slug should reflect this
 			if (data.slug.endsWith('.gif') && imgType.ext === 'png') {
-				log.debug(logPrefix + 'Old slug: "' + data.slug + '"');
+				that.log.debug(logPrefix + 'Old slug: "' + data.slug + '"');
 				data.slug = data.slug.substring(0, data.slug.length - 3) + 'png';
-				log.debug(logPrefix + 'New slug: "' + data.slug + '"');
+				that.log.debug(logPrefix + 'New slug: "' + data.slug + '"');
 			}
 		}
 
@@ -871,12 +911,12 @@ function saveImage(data, cb) {
 			dbFields.push(lUtils.uuidToBuffer(data.uuid));
 		}
 
-		db.query(sql, dbFields, function (err, rows) {
+		that.db.query(sql, dbFields, function (err, rows) {
 			if (err) return cb(err);
 
 			if (rows.length) {
 				const	err	= new Error('Slug: "' + data.slug + '" is used by another image entry, try setting another one manually.');
-				log.verbose(logPrefix + err.message);
+				that.log.verbose(logPrefix + err.message);
 				return cb(err);
 			}
 
@@ -898,17 +938,17 @@ function saveImage(data, cb) {
 
 		message.params.data	= data;
 
-		dataWriter.intercom.send(message, options, function (err, msgUuid) {
+		that.dataWriter.intercom.send(message, options, function (err, msgUuid) {
 			if (err) return cb(err);
 
-			dataWriter.emitter.once(msgUuid, cb);
+			that.dataWriter.emitter.once(msgUuid, cb);
 		});
 	});
 
 	// Save file data
 	if (data.file) {
 		tasks.push(function (cb) {
-			createImageDirectory(data.uuid, function (err, path) {
+			that.createImageDirectory(data.uuid, function (err, path) {
 				if (err) return cb(err);
 				fs.writeFile(path + data.uuid + '.' + data.file.type, data.file.bin, function (err) {
 					if (err) return cb(err);
@@ -920,16 +960,16 @@ function saveImage(data, cb) {
 
 	// Clear cache for this slug
 	tasks.push(function (cb) {
-		db.query('SELECT slug FROM images_images WHERE uuid = ?', [lUtils.uuidToBuffer(data.uuid)], function (err, rows) {
+		that.db.query('SELECT slug FROM images_images WHERE uuid = ?', [lUtils.uuidToBuffer(data.uuid)], function (err, rows) {
 			if (err) return cb(err);
 
 			if (rows.length === 0) {
 				const	err	= new Error('Could not find database row of newly saved image uuid: "' + data.uuid + '"');
-				log.error(logPrefix + '' + err.message);
+				that.log.error(logPrefix + '' + err.message);
 				return cb(err);
 			}
 
-			clearCache({'slug': rows[0].slug}, cb);
+			that.clearCache({'slug': rows[0].slug}, cb);
 		});
 	});
 
@@ -939,7 +979,7 @@ function saveImage(data, cb) {
 
 		fs.unlink(tmpFilePath, function (err) {
 			if (err) {
-				log.warn(logPrefix + 'Could not remove tmpFilePath "' + tmpFilePath + '", err: ' + err.message);
+				that.log.warn(logPrefix + 'Could not remove tmpFilePath "' + tmpFilePath + '", err: ' + err.message);
 			}
 
 			cb(err);
@@ -951,7 +991,7 @@ function saveImage(data, cb) {
 		if (err) return cb(err);
 
 		// Re-read this entry from the database to be sure to get the right deal!
-		getImages({'uuids': data.uuid}, function (err, images) {
+		that.getImages({'uuids': data.uuid}, function (err, images) {
 			if (err) return cb(err);
 
 			cb(null, images[Object.keys(images)[0]]);
@@ -959,12 +999,4 @@ function saveImage(data, cb) {
 	});
 };
 
-exports.clearCache	= clearCache;
-exports.createImageDirectory	= createImageDirectory;
-exports.dataWriter	= dataWriter;
-exports.getImageBin	= getImageBin;
-exports.getImages	= getImages;
-exports.getPathToImage	= getPathToImage;
-exports.options	= dataWriter.options;
-exports.rmImage	= rmImage;
-exports.saveImage	= saveImage;
+exports = module.exports = Img;

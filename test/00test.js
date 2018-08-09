@@ -5,24 +5,17 @@ const	bufferEqual	= require('buffer-equal'),
 	uuidLib	= require('uuid'),
 	rimraf	= require('rimraf'),
 	mkdirp	= require('mkdirp'),
-	lUtils	= require('larvitutils'),
+	LUtils	= require('larvitutils'),
+	lUtils	= new LUtils(),
+	ImgLib	= require(__dirname + '/../index.js'),
 	assert	= require('assert'),
 	async	= require('async'),
 	jimp	= require('jimp'),
-	img	= require(__dirname + '/../img.js'),
-	log	= require('winston'),
+	log	= new lUtils.Log('debug'),
+	img	= new ImgLib({'db': require('larvitdb'), 'log': log}),
 	db	= require('larvitdb'),
 	os	= require('os'),
 	fs	= require('fs-extra');
-
-// Set up winston
-log.remove(log.transports.Console);
-/**/log.add(log.transports.Console, {
-	'level':	'warn',
-	'colorize':	true,
-	'timestamp':	true,
-	'json':	false
-});/**/
 
 before(function (done) {
 	const	tasks	= [];
@@ -31,12 +24,12 @@ before(function (done) {
 
 	// Run DB Setup
 	tasks.push(function (cb) {
-		let confFile;
+		let	confFile;
 
 		if (process.env.DBCONFFILE === undefined) {
-			confFile = __dirname + '/../config/db_test.json';
+			confFile	= __dirname + '/../config/db_test.json';
 		} else {
-			confFile = process.env.DBCONFFILE;
+			confFile	= process.env.DBCONFFILE;
 		}
 
 		log.verbose('DB config file: "' + confFile + '"');
@@ -46,7 +39,7 @@ before(function (done) {
 			if (err) {
 
 				// Then look for this string in the config folder
-				confFile = __dirname + '/../config/' + confFile;
+				confFile	= __dirname + '/../config/' + confFile;
 				fs.stat(confFile, function (err) {
 					if (err) throw err;
 					log.verbose('DB config: ' + JSON.stringify(require(confFile)));
@@ -58,19 +51,6 @@ before(function (done) {
 
 			log.verbose('DB config: ' + JSON.stringify(require(confFile)));
 			db.setup(require(confFile), cb);
-		});
-	});
-
-	// Check for empty db
-	tasks.push(function (cb) {
-		db.query('SHOW TABLES', function (err, rows) {
-			if (err) throw err;
-
-			if (rows.length) {
-				throw new Error('Database is not empty. To make a test, you must supply an empty database!');
-			}
-
-			cb();
 		});
 	});
 

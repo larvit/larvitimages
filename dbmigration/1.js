@@ -2,15 +2,17 @@
 
 const	logPrefix	= 'larvitimages: ./dbmigration/1.js: ',
 	uuidLib	= require('uuid'),
-	imgLib	= require(__dirname + '/../img.js'),
-	lUtils	= require('larvitutils'),
+	ImgLib	= require(__dirname + '/../img.js'),
+	LUtils	= require('larvitutils'),
+	lUtils	= new LUtils(),
 	async	= require('async'),
-	log	= require('winston'),
 	fs	= require('fs');
 
 exports = module.exports = function (cb) {
 	const	tasks	= [],
-		db	= this.options.dbDriver;
+		that	= this,
+		img	= new ImgLib({'db': that.options.dbDriver, 'log': that.log}),
+		db	= that.options.dbDriver;
 
 	function createTables(cb) {
 		const	tasks	= [];
@@ -59,13 +61,13 @@ exports = module.exports = function (cb) {
 			for (let i = 0; rows[i] !== undefined; i ++) {
 				for (const colName of Object.keys(rows[i])) {
 					if (rows[i][colName] === 'images_images') {
-						found = true;
+						found	= true;
 					}
 				}
 			}
 
 			if (found === false) {
-				log.info(logPrefix + 'No previous table to handle migrations from');
+				that.log.info(logPrefix + 'No previous table to handle migrations from');
 				return createTables(cb);
 			}
 
@@ -102,7 +104,7 @@ exports = module.exports = function (cb) {
 							type	= 'gif';
 						} else {
 							const	err	= new Error('No valid type found for slug: "' + row.slug + '" with id: "' + row.id + '"');
-							log.error(logPrefix + err.message);
+							that.log.error(logPrefix + err.message);
 							return cb(err);
 						}
 
@@ -152,7 +154,7 @@ exports = module.exports = function (cb) {
 									throw new Error('Can not find type for uuid: "' + uuid + '"');
 								}
 
-								imgLib.createImageDirectory(uuid, function (err, path) {
+								img.createImageDirectory(uuid, function (err, path) {
 									if (err) return cb(err);
 
 									fs.writeFile(path + uuid + '.' + rows[0].type, imgBin, cb);

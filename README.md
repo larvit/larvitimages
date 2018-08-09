@@ -31,28 +31,40 @@ serverConf.customRoutes = [{
 
 ### Paths
 
-This whole step is optional
-
-#### Via config file
-
-Create a configuration file in a folder called "config" in your application folder and create an image called images.json with the following content:
-
-```json
-{
-	"storagePath": "/path/to/storage/",	// Optional, default is process.cwd() + '/larvitimages'
-	"cachePath": "/path/to/cache/"	// Optional, default is require('os').tmpdir() + '/larvitimages_cache'
-}
-```
-
-__Important!__ the module will look in process.cwd() + '/config/images.json' for the file, so if you change your working directory before loading it will not be found.
-
-#### Via modification of the object itself
-
 ```javascript
-const	imgLib	= require('larvitimages');
+const	winston	= require('winston'),
+	ImgLib	= require('larvitimages'),
+	log	= winston.createLogger({'transports': [new winston.transports.Console()]}),
+	db	= require('larvitdb'),
+	img = new ImgLib({
+		'db':	db,
 
-imgLib.storagePath	= process.cwd() + '/larvitimages';	// Optional, default is process.cwd() + '/larvitimages'
-imgLib.cachePath	= require('os').tmpdir() + '/larvitimages_cache';	// Optional, default is require('os').tmpdir() + '/larvitimages_cache'
+		// Optional configuration
+		'storagePath':	process.cwd() + '/larvitimages',	// This is the default
+		'cachePath':	require('os').tmpdir() + '/larvitimages_cache',	// This is the default
+		'log':	log,	// Will use a basic console.log/error log if not set
+		'mode':	'noSync',	// This is the default
+		'intercom':	new (require('larvitamintercom'))('loopback interface'),	// This is the default
+		'exchangeName':	'larvitimages',	// This is the default, RabbitMQ exchange name for the datawriter
+		'amsync_host':	null,	// See larvitamsync for details
+		'amsync_minPort':	null,	// See larvitamsync for details
+		'amsync_maxPort':	null	// See larvitamsync for details
+	});
+
+db.setup({
+	'connectionLimit':	10,
+	'sockehosttPath':	'127.0.0.1',
+	'user':	'foo',
+	'password':	'bar',
+	'charset':	'utf8mb4_general_ci',
+	'supportBigNumbers':	true,
+	'database':	'dbname'
+});
+
+// OPTIONAL!
+// You can set the paths after init, like this:
+//img.storagePath	= process.cwd() + '/larvitimages';
+//img.cachePath	= require('os').tmpdir() + '/larvitimages_cache';
 ```
 
 ## Usage
@@ -60,8 +72,7 @@ imgLib.cachePath	= require('os').tmpdir() + '/larvitimages_cache';	// Optional, 
 ### Save image
 
 ```javascript
-const imgLib = require('larvitimages'),
-			image = {
+const image = {
 				'slug' : 'Some string',
 				'file': {
 					'bin': imageBuffer
@@ -104,7 +115,7 @@ img.getImages(options, function(err, image) {
 
 ```javascript
 const options = {
-	'slugs': ['Some slug'],
+	'slugs':	['Some slug'],
 	'includeBinaryData':	true // If false or undefined only image data will be fetched.
 };
 

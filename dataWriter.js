@@ -2,130 +2,98 @@
 
 const	topLogPrefix	= 'larvitimages: dataWriter.js: ',
 	EventEmitter	= require('events').EventEmitter,
-	eventEmitter	= new EventEmitter(),
 	DbMigration	= require('larvitdbmigration'),
-	Intercom	= require('larvitamintercom'),
-	checkKey	= require('check-object-key'),
 	lUtils	= require('larvitutils'),
 	amsync	= require('larvitamsync'),
-	async	= require('async'),
-	that	= this,
-	log	= require('winston'),
-	db	= require('larvitdb');
+	async	= require('async');
 
-let	readyInProgress	= false,
-	isReady	= false;
+function DataWriter(options) {
+	const	that	= this;
 
-function listenToQueue(retries, cb) {
+	for (const key of Object.keys(options)) {
+		that[key]	= options[key];
+	}
+
+	that.internalEmitter	= new EventEmitter();
+	that.emitter	= new EventEmitter();
+
+	that.listenToQueue();
+}
+
+DataWriter.prototype.listenToQueue = function listenToQueue() {
 	const	logPrefix	= topLogPrefix + 'listenToQueue() - ',
-		options	= {'exchange': exports.exchangeName},
-		tasks	= [];
+		options	= {},
+		tasks	= [],
+		that	= this;
 
 	let	listenMethod;
-
-	if (typeof retries === 'function') {
-		cb	= retries;
-		retries	= 0;
-	}
-
-	if (typeof cb !== 'function') {
-		cb	= function () {};
-	}
-
-	if (retries === undefined) {
-		retries	= 0;
-	}
-
-	tasks.push(function (cb) {
-		checkKey({
-			'obj':	exports,
-			'objectKey':	'intercom',
-			'default':	new Intercom('loopback interface'),
-			'defaultLabel':	'loopback interface'
-		}, function (err, warning) {
-			if (warning) log.warn(logPrefix + warning);
-			cb(err);
-		});
-	});
-
-	tasks.push(function (cb) {
-		checkKey({
-			'obj':	exports,
-			'objectKey':	'mode',
-			'default':	'noSync',
-			'validValues':	['master', 'slave', 'noSync']
-		}, function (err, warning) {
-			if (warning) log.warn(logPrefix + warning);
-			cb(err);
-		});
-	});
 
 	// Set listenMethod
 	tasks.push(function (cb) {
 		// Make sure this is ran next tick so mode can be set
 		setImmediate(function () {
-			if (exports.mode === 'master') {
+			if (that.mode === 'master') {
 				listenMethod	= 'consume';
 				options.exclusive	= true;	// It is important no other client tries to sneak
 				//		out messages from us, and we want "consume"
 				//		since we want the queue to persist even if this
 				//		minion goes offline.
-			} else if (exports.mode === 'slave' || exports.mode === 'noSync') {
-				listenMethod = 'subscribe';
-			} else {
-				const	err	= new Error('Invalid exports.mode. Must be either "master", "slave" or "noSync", but is: "' + exports.mode + '"');
-				log.error(logPrefix + err.message);
-				return cb(err);
+			} else if (that.mode === 'slave' || that.mode === 'noSync') {
+				listenMethod	= 'subscribe';
 			}
 
-			log.info(logPrefix + 'listenMethod: ' + listenMethod);
+			that.log.info(logPrefix + 'listenMethod: ' + listenMethod);
 			cb();
 		});
 	});
 
-	// Wait for intercom ready
+	// Wait for intercom to be ready
 	tasks.push(function (cb) {
-		exports.intercom.ready(cb);
+		that.intercom.ready(cb);
 	});
 
 	// Listen to intercom
 	tasks.push(function (cb) {
-		exports.intercom[listenMethod](options, function (message, ack, deliveryTag) {
-			exports.ready(function (err) {
+		that.intercom[listenMethod](options, function (message, ack, deliveryTag) {
+			that.ready(function (err) {
 				ack(err); // Ack first, if something goes wrong we log it and handle it manually
 
 				if (err) {
-					log.error(logPrefix + 'intercom.' + listenMethod + '() - exports.ready() returned err: ' + err.message);
+					that.log.error(logPrefix + 'intercom.' + listenMethod + '() - exports.ready() returned err: ' + err.message);
 					return;
 				}
 
 				if (typeof message !== 'object') {
-					log.error(logPrefix + 'intercom.' + listenMethod + '() - Invalid message received, is not an object! deliveryTag: "' + deliveryTag + '"');
+					that.log.error(logPrefix + 'intercom.' + listenMethod + '() - Invalid message received, is not an object! deliveryTag: "' + deliveryTag + '"');
 					return;
 				}
 
-				if (typeof exports[message.action] === 'function') {
-					exports[message.action](message.params, deliveryTag, message.uuid);
+				if (typeof that[message.action] === 'function') {
+					that[message.action](message.params, deliveryTag, message.uuid);
 				} else {
-					log.warn(logPrefix + 'intercom.' + listenMethod + '() - Unknown message.action received: "' + message.action + '"');
+					that.log.warn(logPrefix + 'intercom.' + listenMethod + '() - Unknown message.action received: "' + message.action + '"');
 				}
 			});
 		}, cb);
 	});
 
 	// Run ready function
-	tasks.push(ready);
+	tasks.push(function (cb) {
+		that.ready(cb);
+	});
 
-	async.series(tasks);
-}
-// Run listenToQueue as soon as all I/O is done, this makes sure the exports.mode can be set
-// by the application before listening commences
-setImmediate(listenToQueue);
+	async.series(tasks, function (err) {
+		if (err) {
+			that.log.error(logPrefix + err.message);
+		}
+	});
+};
 
 // This is ran before each incoming message on the queue is handeled
-function ready(retries, cb) {
+DataWriter.prototype.ready = function ready(retries, cb) {
 	const	logPrefix	= topLogPrefix + 'ready() - ',
-		tasks	= [];
+		tasks	= [],
+		that	= this;
 
 	if (typeof retries === 'function') {
 		cb	= retries;
@@ -140,57 +108,29 @@ function ready(retries, cb) {
 		retries	= 0;
 	}
 
-	if (isReady === true) return cb();
+	if (that.isReady === true) return cb();
 
-	if (readyInProgress === true) {
-		eventEmitter.on('ready', cb);
+	if (that.readyInProgress === true) {
+		that.internalEmitter.on('ready', cb);
 		return;
 	}
 
-	readyInProgress = true;
-
-	tasks.push(function (cb) {
-		checkKey({
-			'obj':	exports,
-			'objectKey':	'intercom',
-			'default':	new Intercom('loopback interface'),
-			'defaultLabel':	'loopback interface'
-		}, function (err, warning) {
-			if (warning) log.warn(logPrefix + warning);
-			cb(err);
-		});
-	});
-
-	tasks.push(function (cb) {
-		checkKey({
-			'obj':	exports,
-			'objectKey':	'mode',
-			'default':	'noSync',
-			'validValues':	['master', 'slave', 'noSync']
-		}, function (err, warning) {
-			if (warning) log.warn(logPrefix + warning);
-			cb(err);
-		});
-	});
+	that.readyInProgress	= true;
 
 	tasks.push(function (cb) {
 		setImmediate(function () {
-			if (exports.mode === 'slave') {
-				log.verbose(logPrefix + 'exports.mode: "' + exports.mode + '", so read');
+			if (that.mode === 'slave') {
+				that.log.verbose(logPrefix + 'mode: "' + that.mode + '", so read');
 				amsync.mariadb({
-					'exchange':	exports.exchangeName + '_dataDump',
-					'intercom':	exports.intercom
+					'exchange':	that.exchangeName + '_dataDump',
+					'intercom':	that.intercom
 				}, cb);
-			} else if (exports.mode === 'noSync') {
-				log.info(logPrefix + 'exports.mode: "' + exports.mode + '", will not sync with others before starting');
+			} else if (that.mode === 'noSync') {
+				that.log.info(logPrefix + 'mode: "' + that.mode + '", will not sync with others before starting');
 				cb();
-			} else if (exports.mode === 'master') {
-				log.verbose(logPrefix + 'exports.mode: "' + exports.mode + '"');
+			} else if (that.mode === 'master') {
+				that.log.verbose(logPrefix + 'mode: "' + that.mode + '"');
 				cb();
-			} else {
-				const	err	= new Error('Invalid exports.mode! Must be "master", "slave" or "noSync", but is: "' + exports.mode + '"');
-				log.error(logPrefix + err.message);
-				return cb(err);
 			}
 		});
 	});
@@ -201,15 +141,16 @@ function ready(retries, cb) {
 
 		let	dbMigration;
 
-		options.dbType	= 'larvitdb';
+		options.dbType	= 'mariadb';
 		options.dbDriver	= db;
 		options.tableName	= 'images_db_version';
 		options.migrationScriptsPath	= __dirname + '/dbmigration';
+		options.log	= that.log;
 		dbMigration	= new DbMigration(options);
 
 		dbMigration.run(function (err) {
 			if (err) {
-				log.error(logPrefix + 'Database error: ' + err.message);
+				that.log.error(logPrefix + 'Database error: ' + err.message);
 			}
 
 			cb(err);
@@ -219,54 +160,57 @@ function ready(retries, cb) {
 	async.series(tasks, function (err) {
 		if (err) return;
 
-		isReady	= true;
-		eventEmitter.emit('ready');
+		that.isReady	= true;
+		that.internalEmitter.emit('ready');
 
-		if (exports.mode === 'master') {
-			runDumpServer(cb);
+		if (that.mode === 'master') {
+			that.runDumpServer(cb);
 		} else {
 			cb();
 		}
 	});
-}
+};
 
-function rmImage(params, deliveryTag, msgUuid) {
+DataWriter.prototype.rmImage = function rmImage(params, deliveryTag, msgUuid) {
 	const	logPrefix	= topLogPrefix + 'rmImage() - ',
 		tasks	= [],
+		that	= this,
 		uuid	= lUtils.uuidToBuffer(params.uuid);
 
 	tasks.push(function (cb) {
 		if ( ! uuid ) {
 			const	err	= new Error('Invalid uuid supplied');
-			log.error(logPrefix + err.message);
+			that.log.error(logPrefix + err.message);
 			return cb(err);
 		}
 		cb();
 	});
 
-	tasks.push(ready);
+	tasks.push(function (cb) {
+		that.ready(cb);
+	});
 
 	// Delete metadata
 	tasks.push(function (cb) {
-		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', uuid, cb);
+		that.db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', uuid, cb);
 	});
 
 	// Delete database entry
 	tasks.push(function (cb) {
-		db.query('DELETE FROM images_images WHERE uuid = ?', uuid, cb);
+		that.db.query('DELETE FROM images_images WHERE uuid = ?', uuid, cb);
 	});
 
 	async.series(tasks, function (err) {
-		exports.emitter.emit(msgUuid, err);
+		that.emitter.emit(msgUuid, err);
 	});
-}
+};
 
-function runDumpServer(cb) {
-	const	options	= {
-			'exchange': exports.exchangeName + '_dataDump',
-			'host': that.options.amsync ? that.options.amsync.host : null,
-			'minPort': that.options.amsync ? that.options.amsync.minPort : null,
-			'maxPort': that.options.amsync ? that.options.amsync.maxPort : null
+DataWriter.prototype.runDumpServer = function runDumpServer(cb) {
+	const options = {
+			'exchange':	that.exchangeName + '_dataDump',
+			'host':	that.options.amsync,
+			'minPort':	that.options.amsync,
+			'maxPort':	that.options.amsync
 		},
 		args	= [];
 
@@ -297,20 +241,21 @@ function runDumpServer(cb) {
 	};
 
 	options['Content-Type']	= 'application/sql';
-	options.intercom	= exports.intercom;
+	options.intercom	= that.intercom;
 
 	new amsync.SyncServer(options, cb);
-}
+};
 
-function saveImage(params, deliveryTag, msgUuid) {
+DataWriter.prototype.saveImage = function saveImage(params, deliveryTag, msgUuid) {
 	const	logPrefix	= topLogPrefix + 'saveImage() - ',
 		tasks	= [],
+		that	= this,
 		uuid	= lUtils.uuidToBuffer(params.data.uuid);
 
 	tasks.push(function (cb) {
 		if ( ! uuid ) {
 			const	err	= new Error('Invalid uuid supplied');
-			log.error(logPrefix + err.message);
+			that.log.error(logPrefix + err.message);
 			return cb(err);
 		}
 		cb();
@@ -321,9 +266,9 @@ function saveImage(params, deliveryTag, msgUuid) {
 		const	sql	= 'INSERT IGNORE INTO images_images (uuid, slug) VALUES(?,?);',
 			dbFields	= [uuid, params.data.slug];
 
-		db.query(sql, dbFields, function (err) {
+		that.db.query(sql, dbFields, function (err) {
 			if (err) return cb(err);
-			log.debug(logPrefix + 'New image created with uuid: "' + params.data.uuid + '"');
+			that.log.debug(logPrefix + 'New image created with uuid: "' + params.data.uuid + '"');
 			cb();
 		});
 	});
@@ -331,12 +276,12 @@ function saveImage(params, deliveryTag, msgUuid) {
 	// Check if a record was created with our slug and uuid
 	// In case the slug was already taken this have not happened and we need to return an error
 	tasks.push(function (cb) {
-		db.query('SELECT slug FROM images_images WHERE uuid = ?', uuid, function (err, rows) {
+		that.db.query('SELECT slug FROM images_images WHERE uuid = ?', uuid, function (err, rows) {
 			if (err) return cb(err);
 
 			if (rows.length === 0) {
 				const	err	= new Error('Slug was already taken (or other unknown error)');
-				log.info(logPrefix + err.message);
+				that.log.info(logPrefix + err.message);
 				return cb(err);
 			}
 			cb(); // All is well, move on
@@ -348,7 +293,7 @@ function saveImage(params, deliveryTag, msgUuid) {
 		const	sql	= 'UPDATE images_images SET slug = ? WHERE uuid = ?;',
 			dbFields	= [params.data.slug, uuid];
 
-		db.query(sql, dbFields, cb);
+		that.db.query(sql, dbFields, cb);
 	});
 
 	// Set type if it exists
@@ -357,14 +302,14 @@ function saveImage(params, deliveryTag, msgUuid) {
 			const	sql	= 'UPDATE images_images SET type = ? WHERE uuid = ?;',
 				dbFields	= [params.data.file.type, uuid];
 
-			db.query(sql, dbFields, cb);
+			that.db.query(sql, dbFields, cb);
 		});
 	}
 
 	// Save metadata
 	// First delete all existing metadata about this image
 	tasks.push(function (cb) {
-		db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', uuid, cb);
+		that.db.query('DELETE FROM images_images_metadata WHERE imageUuid = ?;', uuid, cb);
 	});
 
 	// Insert new metadata
@@ -382,18 +327,13 @@ function saveImage(params, deliveryTag, msgUuid) {
 			}
 
 			sql = sql.substring(0, sql.length - 1) + ';';
-			db.query(sql, dbFields, cb);
+			that.db.query(sql, dbFields, cb);
 		});
 	}
 
 	async.series(tasks, function (err) {
-		exports.emitter.emit(msgUuid, err);
+		that.emitter.emit(msgUuid, err);
 	});
-}
+};
 
-exports.emitter	= new EventEmitter();
-exports.exchangeName	= 'larvitimages';
-exports.options	= undefined;
-exports.ready	= ready;
-exports.rmImage	= rmImage;
-exports.saveImage	= saveImage;
+exports = module.exports = DataWriter;

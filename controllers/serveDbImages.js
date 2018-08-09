@@ -10,7 +10,7 @@ const	logPrefix	= 'larvitimages: controllers/serveDbImages.js - ',
 	fs	= require('fs');
 
 function generateEtag(path) {
-	let stats;
+	let	stats;
 
 	if ( ! fs.existsSync(path)) return false;
 
@@ -27,11 +27,10 @@ exports.run = function (req, res) {
 	const	slug	= path.parse(req.urlParsed.pathname).base,
 		tasks	= [];
 
-	let	responseSent = false,
+	let	responseSent	= false,
 		imgMime;
 
 	if (req.headers && req.headers['if-none-match'] !== undefined) {
-
 		tasks.push(function (cb) {
 			img.getImages({'slugs': [slug]}, function (err, images) {
 				let	imagePath,
