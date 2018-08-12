@@ -26,10 +26,10 @@
   },
   "description": "Image resizing, admin page and database for images meta data.",
   "devDependencies": {
-    "eslint": "^5.1.0",
-    "larvitdb": "^2.0.0",
-    "mocha": "^5.1.1",
-    "mocha-eslint": "^4.1.0",
+    "eslint": "5.3.0",
+    "larvitdb": "2.1.0",
+    "mocha": "5.2.0",
+    "mocha-eslint": "4.1.0",
     "uuid-validate": "0.0.3"
   },
   "keywords": [
