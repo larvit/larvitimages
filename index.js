@@ -768,7 +768,7 @@ Img.prototype.saveImage = function saveImage(data, cb) {
 		that.log.info(logPrefix + 'Upload file is missing, but required since no uuid is supplied.');
 		return cb(new Error('Image file is required'));
 	}
-
+console.log('Started at least');
 	tasks.push(function (cb) {
 		that.dataWriter.ready(cb);
 	});
@@ -926,7 +926,7 @@ Img.prototype.saveImage = function saveImage(data, cb) {
 
 	// Save database data through queue
 	tasks.push(function (cb) {
-		const	options	= {'exchange': dataWriter.exchangeName},
+		const	options	= {'exchange': that.options.exchangeName},
 			message	= {};
 
 		message.action	= 'saveImage';

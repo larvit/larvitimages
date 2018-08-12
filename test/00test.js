@@ -2,6 +2,7 @@
 
 const	bufferEqual	= require('buffer-equal'),
 	tmpFolder	= require('os').tmpdir() + '/larvitimages_test',
+	Intercom	= require('larvitamintercom'),
 	uuidLib	= require('uuid'),
 	rimraf	= require('rimraf'),
 	mkdirp	= require('mkdirp'),
@@ -11,8 +12,8 @@ const	bufferEqual	= require('buffer-equal'),
 	assert	= require('assert'),
 	async	= require('async'),
 	jimp	= require('jimp'),
-	log	= new lUtils.Log('debug'),
-	img	= new ImgLib({'db': require('larvitdb'), 'log': log}),
+	log	= new lUtils.Log('warn'),
+	img	= new ImgLib({'db': require('larvitdb'), 'log': log, 'mode': 'master', 'intercom': new Intercom('loopback interface')}),
 	db	= require('larvitdb'),
 	os	= require('os'),
 	fs	= require('fs-extra');
@@ -59,18 +60,16 @@ before(function (done) {
 		mkdirp(tmpFolder, cb);
 	});
 
-	// Setting mode and intercom for test purposes
-	// This is not required for the tests to pass, but it is required to not trigger warnings
 	tasks.push(function (cb) {
-		const	Intercom	= require('larvitamintercom');
-		img.dataWriter.mode	= 'master';
-		img.dataWriter.intercom	= new Intercom('loopback interface');
-		cb();
+		img.dataWriter.ready(function (err) {
+			cb(err);
+		});
 	});
 
-	tasks.push(img.dataWriter.ready);
-
-	async.series(tasks, done);
+	async.series(tasks, function (err) {
+		if (err) throw err;
+		done();
+	});
 });
 
 describe('LarvitImages', function () {
@@ -95,9 +94,13 @@ describe('LarvitImages', function () {
 
 		// Save test image
 		tasks.push(function (cb) {
+console.log('!!!! Saving...');
+
 			img.saveImage(saveObj, function (err, image) {
 				if (err) throw err;
 				saveObj.uuid	= image.uuid;
+
+console.log('!!!! Saved!');
 
 				cb();
 			});

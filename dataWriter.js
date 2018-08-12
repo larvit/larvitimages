@@ -77,11 +77,6 @@ DataWriter.prototype.listenToQueue = function listenToQueue() {
 		}, cb);
 	});
 
-	// Run ready function
-	tasks.push(function (cb) {
-		that.ready(cb);
-	});
-
 	async.series(tasks, function (err) {
 		if (err) {
 			that.log.error(logPrefix + err.message);
@@ -90,22 +85,14 @@ DataWriter.prototype.listenToQueue = function listenToQueue() {
 };
 
 // This is ran before each incoming message on the queue is handeled
-DataWriter.prototype.ready = function ready(retries, cb) {
+DataWriter.prototype.ready = function ready(cb) {
 	const	logPrefix	= topLogPrefix + 'ready() - ',
 		tasks	= [],
 		that	= this;
 
-	if (typeof retries === 'function') {
-		cb	= retries;
-		retries	= 0;
-	}
-
 	if (typeof cb !== 'function') {
+		console.log('cb is not a function');
 		cb	= function () {};
-	}
-
-	if (retries === undefined) {
-		retries	= 0;
 	}
 
 	if (that.isReady === true) return cb();
@@ -142,7 +129,7 @@ DataWriter.prototype.ready = function ready(retries, cb) {
 		let	dbMigration;
 
 		options.dbType	= 'mariadb';
-		options.dbDriver	= db;
+		options.dbDriver	= that.db;
 		options.tableName	= 'images_db_version';
 		options.migrationScriptsPath	= __dirname + '/dbmigration';
 		options.log	= that.log;
@@ -152,7 +139,6 @@ DataWriter.prototype.ready = function ready(retries, cb) {
 			if (err) {
 				that.log.error(logPrefix + 'Database error: ' + err.message);
 			}
-
 			cb(err);
 		});
 	});
@@ -206,29 +192,30 @@ DataWriter.prototype.rmImage = function rmImage(params, deliveryTag, msgUuid) {
 };
 
 DataWriter.prototype.runDumpServer = function runDumpServer(cb) {
-	const options = {
+	const that	= this,
+		options = {
 			'exchange':	that.exchangeName + '_dataDump',
-			'host':	that.options.amsync,
-			'minPort':	that.options.amsync,
-			'maxPort':	that.options.amsync
+			'host':	that.amsync_host,
+			'minPort':	that.amsync_minPort,
+			'maxPort':	that.amsync_maxPort
 		},
 		args	= [];
 
-	if (db.conf.host) {
+	if (that.db.conf.host) {
 		args.push('-h');
-		args.push(db.conf.host);
+		args.push(that.db.conf.host);
 	}
 
 	args.push('-u');
-	args.push(db.conf.user);
+	args.push(that.db.conf.user);
 
-	if (db.conf.password) {
-		args.push('-p' + db.conf.password);
+	if (that.db.conf.password) {
+		args.push('-p' + that.db.conf.password);
 	}
 
 	args.push('--single-transaction');
 	args.push('--hex-blob');
-	args.push(db.conf.database);
+	args.push(that.db.conf.database);
 
 	// Tables
 	args.push('images_images');

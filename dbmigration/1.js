@@ -2,7 +2,7 @@
 
 const	logPrefix	= 'larvitimages: ./dbmigration/1.js: ',
 	uuidLib	= require('uuid'),
-	ImgLib	= require(__dirname + '/../img.js'),
+	ImgLib	= require(__dirname + '/../index.js'),
 	LUtils	= require('larvitutils'),
 	lUtils	= new LUtils(),
 	async	= require('async'),
