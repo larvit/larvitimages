@@ -13,13 +13,16 @@ const	bufferEqual	= require('buffer-equal'),
 	async	= require('async'),
 	jimp	= require('jimp'),
 	log	= new lUtils.Log('warn'),
-	img	= new ImgLib({'db': require('larvitdb'), 'log': log, 'mode': 'master', 'intercom': new Intercom('loopback interface')}),
 	db	= require('larvitdb'),
 	os	= require('os'),
 	fs	= require('fs-extra');
 
+let img;
+
 before(function (done) {
 	const	tasks	= [];
+	 
+	let config;
 
 	this.timeout(10000);
 
@@ -44,15 +47,23 @@ before(function (done) {
 				fs.stat(confFile, function (err) {
 					if (err) throw err;
 					log.verbose('DB config: ' + JSON.stringify(require(confFile)));
-					db.setup(require(confFile), cb);
+					config = require(confFile);
+					cb();
 				});
 
 				return;
 			}
 
 			log.verbose('DB config: ' + JSON.stringify(require(confFile)));
-			db.setup(require(confFile), cb);
+			config = require(confFile);
+			cb();
 		});
+	});
+
+	tasks.push(function (cb) {
+		config.log = log;
+		db.setup(config);
+		cb();
 	});
 
 	// Create tmp folder
@@ -61,9 +72,7 @@ before(function (done) {
 	});
 
 	tasks.push(function (cb) {
-		img.dataWriter.ready(function (err) {
-			cb(err);
-		});
+		img	= new ImgLib({'db': db, 'log': log, 'mode': 'noSync', 'intercom': new Intercom('loopback interface')}, cb);
 	});
 
 	async.series(tasks, function (err) {
@@ -94,14 +103,9 @@ describe('LarvitImages', function () {
 
 		// Save test image
 		tasks.push(function (cb) {
-console.log('!!!! Saving...');
-
 			img.saveImage(saveObj, function (err, image) {
 				if (err) throw err;
 				saveObj.uuid	= image.uuid;
-
-console.log('!!!! Saved!');
-
 				cb();
 			});
 		});

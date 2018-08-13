@@ -16,7 +16,7 @@ const	topLogPrefix	= 'larvitimages: index.js: ',
 	fs	= require('fs-extra'),
 	_	= require('lodash');
 
-function Img(options) {
+function Img(options, cb) {
 	const	logPrefix	= topLogPrefix + 'Img() - ',
 		that	= this;
 
@@ -69,7 +69,7 @@ function Img(options) {
 		'amsync_host':	that.options.amsync_host || null,
 		'amsync_minPort':	that.options.amsync_minPort || null,
 		'amsync_maxPort':	that.options.amsync_maxPort || null
-	});
+	}, cb);
 }
 
 /**
@@ -79,6 +79,8 @@ function Img(options) {
  * @return str
  */
 Img.prototype.getPathToImage = function getPathToImage(uuid, cache) {
+	const that	= this;
+
 	if ( ! uuid || typeof uuid !== 'string') return false;
 
 	if (cache) {
@@ -120,7 +122,7 @@ Img.prototype.createImageDirectory = function createImageDirectory(uuid, cache, 
 		return cb(err);
 	}
 
-	path	= getPathToImage(uuid, cache);
+	path	= that.getPathToImage(uuid, cache);
 
 	if (path === false) {
 		const	err	= new Error('Could not get path to file with uuid: "' + uuid + '"');
@@ -221,7 +223,7 @@ Img.prototype.clearCache = function clearCache(options, cb) {
 
 			if (exists === false) return cb();
 
-			path	= getPathToImage(options.uuid, true);
+			path	= that.getPathToImage(options.uuid, true);
 
 			if (path === false) {
 				const	err	= new Error('Could not get path to file with uuid "' + uuid + '"');
@@ -251,7 +253,7 @@ Img.prototype.clearCache = function clearCache(options, cb) {
 
 			if (exists === false) return cb();
 
-			path	= getPathToImage(options.uuid, true);
+			path	= that.getPathToImage(options.uuid, true);
 
 			if (path === false) {
 				const	err	= new Error('Could not get path to file with uuid "' + uuid + '"');
@@ -311,8 +313,8 @@ Img.prototype.getImageBin = function getImageBin(options, cb) {
 			image	= images[Object.keys(images)[0]];
 		}
 
-		oPath	= getPathToImage(image.uuid, false);
-		cPath	= getPathToImage(image.uuid, true);
+		oPath	= that.getPathToImage(image.uuid, false);
+		cPath	= that.getPathToImage(image.uuid, true);
 
 		if (oPath === false || cPath === false) {
 			const	err	= new Error('Could not get path to file with uuid "' + image.uuid + '"');
@@ -620,7 +622,7 @@ Img.prototype.getImages = function getImages(options, cb) {
 
 				for (let uuid in images) {
 					subtasks.push(function (cb) {
-						const	path	= getPathToImage(uuid);
+						const	path	= that.getPathToImage(uuid);
 
 						if (err) return cb(err);
 
@@ -677,7 +679,7 @@ Img.prototype.rmImage = function rmImage(uuid, cb) {
 
 	// Delete data through queue
 	tasks.push(function (cb) {
-		const	options	= {'exchange': dataWriter.exchangeName},
+		const	options	= {'exchange': that.options.exchangeName},
 			message	= {};
 
 		message.action	= 'rmImage';
@@ -694,7 +696,7 @@ Img.prototype.rmImage = function rmImage(uuid, cb) {
 	if (that.options.mode !== 'slave') {
 		// Delete actual file
 		tasks.push(function (cb) {
-			const	path	= getPathToImage(uuid),
+			const	path	= that. getPathToImage(uuid),
 				fullPath	= path + uuid + '.' + type;
 
 			if (path === false) {
@@ -714,7 +716,7 @@ Img.prototype.rmImage = function rmImage(uuid, cb) {
 		tasks.push(function (cb) {
 			if ( ! slug) return cb();
 
-			clearCache({'slug': slug, 'uuid': uuid}, cb);
+			that.clearCache({'slug': slug, 'uuid': uuid}, cb);
 		});
 	}
 
@@ -742,8 +744,7 @@ Img.prototype.rmImage = function rmImage(uuid, cb) {
  * @param func cb(err, image) - the image will be a row from getImages()
  */
 Img.prototype.saveImage = function saveImage(data, cb) {
-	const	logObject	= _.cloneDeep(data),
-		logPrefix	= topLogPrefix + 'saveImage() - ',
+	const	logPrefix	= topLogPrefix + 'saveImage() - ',
 		tasks	= [],
 		that	= this;
 
@@ -757,21 +758,11 @@ Img.prototype.saveImage = function saveImage(data, cb) {
 		return cb(err);
 	}
 
-	if (logObject.file.bin) {
-		logObject.file.bin	= 'binary data removed for logging purposes';
-	}
-
-	that.log.debug(logPrefix + 'Running with data. "' + JSON.stringify(logObject) + '"');
-
 	// If id is missing, we MUST have a file
 	if (data.uuid === undefined && data.file === undefined) {
 		that.log.info(logPrefix + 'Upload file is missing, but required since no uuid is supplied.');
 		return cb(new Error('Image file is required'));
 	}
-console.log('Started at least');
-	tasks.push(function (cb) {
-		that.dataWriter.ready(cb);
-	});
 
 	// If we have an image file, make sure the format is correct
 	if (data.file !== undefined) {

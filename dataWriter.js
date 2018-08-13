@@ -3,48 +3,48 @@
 const	topLogPrefix	= 'larvitimages: dataWriter.js: ',
 	EventEmitter	= require('events').EventEmitter,
 	DbMigration	= require('larvitdbmigration'),
-	lUtils	= require('larvitutils'),
+	lUtils	= new (require('larvitutils'))(),
 	amsync	= require('larvitamsync'),
 	async	= require('async');
 
-function DataWriter(options) {
+function DataWriter(options, cb) {
 	const	that	= this;
 
 	for (const key of Object.keys(options)) {
 		that[key]	= options[key];
 	}
 
-	that.internalEmitter	= new EventEmitter();
 	that.emitter	= new EventEmitter();
+	that.isReady	= false;
+	that.readyInProgress = false;
 
-	that.listenToQueue();
+	that.listenToQueue(cb);
 }
 
-DataWriter.prototype.listenToQueue = function listenToQueue() {
+DataWriter.prototype.listenToQueue = function listenToQueue(cb) {
 	const	logPrefix	= topLogPrefix + 'listenToQueue() - ',
-		options	= {},
+		options	= {'exchange': this.exchangeName},
 		tasks	= [],
 		that	= this;
 
 	let	listenMethod;
 
+	if ( ! cb) cb = function () {};
+
 	// Set listenMethod
 	tasks.push(function (cb) {
-		// Make sure this is ran next tick so mode can be set
-		setImmediate(function () {
-			if (that.mode === 'master') {
-				listenMethod	= 'consume';
-				options.exclusive	= true;	// It is important no other client tries to sneak
-				//		out messages from us, and we want "consume"
-				//		since we want the queue to persist even if this
-				//		minion goes offline.
-			} else if (that.mode === 'slave' || that.mode === 'noSync') {
-				listenMethod	= 'subscribe';
-			}
+		if (that.mode === 'master') {
+			listenMethod	= 'consume';
+			options.exclusive	= true;	// It is important no other client tries to sneak
+			//		out messages from us, and we want "consume"
+			//		since we want the queue to persist even if this
+			//		minion goes offline.
+		} else if (that.mode === 'slave' || that.mode === 'noSync') {
+			listenMethod	= 'subscribe';
+		}
 
-			that.log.info(logPrefix + 'listenMethod: ' + listenMethod);
-			cb();
-		});
+		that.log.info(logPrefix + 'listenMethod: ' + listenMethod);
+		cb();
 	});
 
 	// Wait for intercom to be ready
@@ -77,10 +77,13 @@ DataWriter.prototype.listenToQueue = function listenToQueue() {
 		}, cb);
 	});
 
+	tasks.push(function (cb) {
+		that.ready(cb);
+	});
+
 	async.series(tasks, function (err) {
-		if (err) {
-			that.log.error(logPrefix + err.message);
-		}
+		if (err) that.log.error(logPrefix + err.message);
+		cb(err);
 	});
 };
 
@@ -91,35 +94,32 @@ DataWriter.prototype.ready = function ready(cb) {
 		that	= this;
 
 	if (typeof cb !== 'function') {
-		console.log('cb is not a function');
 		cb	= function () {};
 	}
 
 	if (that.isReady === true) return cb();
 
 	if (that.readyInProgress === true) {
-		that.internalEmitter.on('ready', cb);
+		that.emitter.on('ready', cb);
 		return;
 	}
 
 	that.readyInProgress	= true;
 
 	tasks.push(function (cb) {
-		setImmediate(function () {
-			if (that.mode === 'slave') {
-				that.log.verbose(logPrefix + 'mode: "' + that.mode + '", so read');
-				amsync.mariadb({
-					'exchange':	that.exchangeName + '_dataDump',
-					'intercom':	that.intercom
-				}, cb);
-			} else if (that.mode === 'noSync') {
-				that.log.info(logPrefix + 'mode: "' + that.mode + '", will not sync with others before starting');
-				cb();
-			} else if (that.mode === 'master') {
-				that.log.verbose(logPrefix + 'mode: "' + that.mode + '"');
-				cb();
-			}
-		});
+		if (that.mode === 'slave') {
+			that.log.verbose(logPrefix + 'mode: "' + that.mode + '", so read');
+			new amsync.SyncClient({
+				'intercom': that.intercom,
+				'exchange': that.exchangeName + '_dataDump'
+			}, cb);
+		} else if (that.mode === 'noSync') {
+			that.log.info(logPrefix + 'mode: "' + that.mode + '", will not sync with others before starting');
+			cb();
+		} else if (that.mode === 'master') {
+			that.log.verbose(logPrefix + 'mode: "' + that.mode + '"');
+			cb();
+		}
 	});
 
 	// Migrate database
@@ -147,7 +147,7 @@ DataWriter.prototype.ready = function ready(cb) {
 		if (err) return;
 
 		that.isReady	= true;
-		that.internalEmitter.emit('ready');
+		that.emitter.emit('ready');
 
 		if (that.mode === 'master') {
 			that.runDumpServer(cb);
