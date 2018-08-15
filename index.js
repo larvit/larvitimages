@@ -927,7 +927,8 @@ Img.prototype.saveImage = function saveImage(data, cb) {
 			data.uuid	= uuidLib.v4();
 		}
 
-		message.params.data	= data;
+		message.params.data	= _.cloneDeep(data);
+		delete message.params.data.file.bin; // this must be deleted or is otherwise sent over rabbit
 
 		that.dataWriter.intercom.send(message, options, function (err, msgUuid) {
 			if (err) return cb(err);
