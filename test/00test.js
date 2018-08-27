@@ -21,7 +21,7 @@ let img;
 
 before(function (done) {
 	const	tasks	= [];
-	 
+
 	let config;
 
 	this.timeout(10000);
