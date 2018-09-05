@@ -5,8 +5,6 @@ const	logPrefix	= 'larvitimages: controllers/serveDbImages.js - ',
 	async	= require('async'),
 	mime	= require('mime-types'),
 	path	= require('path'),
-	log	= require('winston'),
-	img	= require('larvitimages'),
 	fs	= require('fs');
 
 function generateEtag(path) {
@@ -18,7 +16,7 @@ function generateEtag(path) {
 		stats	= fs.statSync(path);
 		return crypto.createHash('md5').update(stats.mtime.toString() + stats.size.toString() + stats.ino.toString()).digest('hex');
 	} catch (err) {
-		log.warn(logPrefix + 'generateEtag() - Failed to generate etag for file "' + path + '": ' + err.message);
+		req.log.warn(logPrefix + 'generateEtag() - Failed to generate etag for file "' + path + '": ' + err.message);
 		return false;
 	}
 }
@@ -32,12 +30,12 @@ exports.run = function (req, res) {
 
 	if (req.headers && req.headers['if-none-match'] !== undefined) {
 		tasks.push(function (cb) {
-			img.getImages({'slugs': [slug]}, function (err, images) {
+			req.imgLib.getImages({'slugs': [slug]}, function (err, images) {
 				let	imagePath,
 					image;
 
 				if (err) {
-					log.warn(logPrefix + err.message);
+					req.log.warn(logPrefix + err.message);
 					return cb();
 				}
 
@@ -46,7 +44,7 @@ exports.run = function (req, res) {
 				image	= images[Object.keys(images)[0]];
 
 				if (req.urlParsed.query.width !== undefined || req.urlParsed.query.height !== undefined) {
-					let	pathToFile	= img.getPathToImage(image.uuid, true);
+					let	pathToFile	= req.imgLib.getPathToImage(image.uuid, true);
 
 					pathToFile += image.uuid;
 
@@ -61,7 +59,7 @@ exports.run = function (req, res) {
 				}
 
 				if ( ! imagePath) {
-					imagePath	= img.getPathToImage(image.uuid, false) + slug;
+					imagePath	= req.imgLib.getPathToImage(image.uuid, false) + slug;
 				}
 
 				if (generateEtag(imagePath) === req.headers['if-none-match']) {
@@ -78,9 +76,9 @@ exports.run = function (req, res) {
 	tasks.push(function (cb) {
 		if (responseSent) return cb();
 
-		img.getImageBin({'slug': slug, 'width': req.urlParsed.query.width, 'height': req.urlParsed.query.height}, function (err, imgBuf, filePath) {
+		req.imgLib.getImageBin({'slug': slug, 'width': req.urlParsed.query.width, 'height': req.urlParsed.query.height}, function (err, imgBuf, filePath) {
 			if (err) {
-				log.info('larvitimages: controllers/serveDbImages.js - slug: "' + slug + '" err from img.getImageBin(): ' + err.message);
+				req.log.info('larvitimages: controllers/serveDbImages.js - slug: "' + slug + '" err from req.imgLib.getImageBin(): ' + err.message);
 				res.writeHead(500, {'Content-Type': 'text/plain' });
 				res.end('Something is funky with this image, the server got sad. :(');
 				return cb(err);
@@ -100,7 +98,7 @@ exports.run = function (req, res) {
 				res.setHeader('Last-Modified', stats.mtime);
 				res.setHeader('ETag', generateEtag(filePath));
 			} catch (err) {
-				log.warn(logPrefix + 'Failed to read stats from file "' + filePath + '": ' + err.message);
+				req.log.warn(logPrefix + 'Failed to read stats from file "' + filePath + '": ' + err.message);
 			}
 
 			res.setHeader('Content-Length', imgBuf.length);

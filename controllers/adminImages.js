@@ -1,7 +1,5 @@
 'use strict';
 
-const	images	= require('larvitimages');
-
 exports.run = function (req, res, cb) {
 	const	data	= {'global': res.globalData},
 		options	= {};
@@ -15,17 +13,19 @@ exports.run = function (req, res, cb) {
 
 	data.pagination	= {};
 	data.pagination.elementsPerPage	= 100;
-	data.pagination.urlParsed	= data.global.urlParsed;
+	data.pagination.urlParsed = data.global.urlParsed;
 
-	options.limit	= data.pagination.elementsPerPage;
-	options.offset	= parseInt(data.global.urlParsed.query.offset)	|| 0;
-	options.q	= data.global.urlParsed.query.q;
+	options.limit = data.pagination.elementsPerPage;
+	options.offset = parseInt(data.global.urlParsed.query.offset) || 0;
+	options.q = data.global.urlParsed.query.q;
 
-	if (isNaN(options.offset) || options.offset < 0) {
+	if (options.offset < 0) {
 		options.offset = 0;
 	}
 
-	images.getImages(options, function (err, rows, totalElements) {
+	req.imgLib.getImages(options, function (err, rows, totalElements) {
+		if (err) return cb(err);
+		
 		data.images = rows;
 		data.pagination.totalElements = totalElements;
 		cb(null, req, res, data);

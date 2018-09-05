@@ -1,9 +1,7 @@
 'use strict';
 
 const	logPrefix	= 'larvitimages: ./controllers/adminImageEdit.js - ',
-	async	= require('async'),
-	img	= require('larvitimages'),
-	log	= require('winston');
+	async	= require('async');
 
 function formatFormData(formData) {
 	if (formData && Array.isArray(formData.metadata)) {
@@ -39,12 +37,12 @@ exports.run = function (req, res, cb) {
 			}
 
 			if (req.formFiles !== undefined && req.formFiles.image !== undefined && req.formFiles.image.size) {
-				log.verbose(logPrefix + 'Form image found: ' + JSON.stringify(req.formFiles.image));
+				req.log.verbose(logPrefix + 'Form image found: ' + JSON.stringify(req.formFiles.image));
 				saveObj.file	= req.formFiles.image;
 			}
 
 			if (res.globalData.formFields.slug) {
-				log.verbose(logPrefix + 'Slug set to: "' + res.globalData.formFields.slug + '"');
+				req.log.verbose(logPrefix + 'Slug set to: "' + res.globalData.formFields.slug + '"');
 				saveObj.slug	= res.globalData.formFields.slug;
 			}
 
@@ -64,7 +62,7 @@ exports.run = function (req, res, cb) {
 				}
 			}
 
-			img.saveImage(saveObj, function (err, image) {
+			req.imgLib.saveImage(saveObj, function (err, image) {
 				if (err) return cb(err);
 
 				if ( ! imgUuid) {
@@ -84,7 +82,7 @@ exports.run = function (req, res, cb) {
 	// Delete a image
 	if (res.globalData.formFields.delete !== undefined && imgUuid !== undefined) {
 		tasks.push(function (cb) {
-			img.rmImage(imgUuid, function (err) {
+			req.imgLib.rmImage(imgUuid, function (err) {
 				if (err) return cb(err);
 
 				req.session.data.nextCallData	= {'global': {'messages': ['Image with ID ' + imgUuid + ' deleted']}};
@@ -97,7 +95,7 @@ exports.run = function (req, res, cb) {
 	// Load data from database
 	} else if (imgUuid !== undefined) {
 		tasks.push(function (cb) {
-			img.getImages({'uuids': imgUuid}, function (err, images) {
+			req.imgLib.getImages({'uuids': imgUuid}, function (err, images) {
 				if (err) return cb(err);
 
 				res.globalData.formFields = images[Object.keys(images)[0]];
