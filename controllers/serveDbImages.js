@@ -90,19 +90,21 @@ exports.run = function (req, res) {
 				return cb();
 			}
 
+			const header = {};
 			imgMime	= mime.lookup(slug) || 'application/octet-stream';
-			res.setHeader('Cache-Control', ['public', 'max-age=900']);
+			header['Cache-Control'] = ['public', 'max-age=900'];
 
 			try {
 				const	stats	= fs.statSync(filePath);
-				res.setHeader('Last-Modified', stats.mtime);
-				res.setHeader('ETag', generateEtag(filePath));
+				header['Last-Modified'] = stats.mtime;
+				header['ETag'] = generateEtag(filePath);
 			} catch (err) {
 				req.log.warn(logPrefix + 'Failed to read stats from file "' + filePath + '": ' + err.message);
 			}
 
-			res.setHeader('Content-Length', imgBuf.length);
-			res.writeHead(200, {'Content-Type': imgMime});
+			header['Content-Length'] = imgBuf.length;
+			header['Content-Type'] = imgMime;
+			res.writeHead(200, header);
 			res.end(imgBuf, 'binary');
 			cb();
 		});
