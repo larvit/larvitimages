@@ -144,7 +144,7 @@ DataWriter.prototype.ready = function ready(cb) {
 	});
 
 	async.series(tasks, function (err) {
-		if (err) return;
+		if (err) return cb(err);
 
 		that.isReady	= true;
 		that.emitter.emit('ready');
