@@ -1,8 +1,7 @@
 'use strict';
 
-exports.run = function (req, res, cb) {
-	const	data	= {'global': res.globalData},
-		options	= {};
+module.exports = function run(req, res, cb) {
+	const	options	= {};
 
 	// Make sure the user have the correct rights
 	// This is set in larvitadmingui controllerGlobal
@@ -11,13 +10,14 @@ exports.run = function (req, res, cb) {
 		return;
 	}
 
-	data.pagination	= {};
-	data.pagination.elementsPerPage	= 100;
-	data.pagination.urlParsed = data.global.urlParsed;
+	res.data	= {'global': res.globalData};
+	res.data.pagination	= {};
+	res.data.pagination.elementsPerPage	= 100;
+	res.data.pagination.urlParsed = res.data.global.urlParsed;
 
-	options.limit = data.pagination.elementsPerPage;
-	options.offset = parseInt(data.global.urlParsed.query.offset) || 0;
-	options.q = data.global.urlParsed.query.q;
+	options.limit = res.data.pagination.elementsPerPage;
+	options.offset = parseInt(res.data.global.urlParsed.query.offset) || 0;
+	options.q = res.data.global.urlParsed.query.q;
 
 	if (options.offset < 0) {
 		options.offset = 0;
@@ -26,8 +26,8 @@ exports.run = function (req, res, cb) {
 	req.imgLib.getImages(options, function (err, rows, totalElements) {
 		if (err) return cb(err);
 		
-		data.images = rows;
-		data.pagination.totalElements = totalElements;
-		cb(null, req, res, data);
+		res.data.images = rows;
+		res.data.pagination.totalElements = totalElements;
+		cb(null, req, res);
 	});
 };

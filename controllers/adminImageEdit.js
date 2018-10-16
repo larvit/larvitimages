@@ -17,15 +17,16 @@ function formatFormData(formData) {
 	}
 }
 
-exports.run = function (req, res, cb) {
-	const	tasks	= [],
-		data	= {'global': res.globalData};
+module.exports = function run(req, res, cb) {
+	const	tasks	= [];
 
 	let	imgUuid	= res.globalData.urlParsed.query.uuid;
 
 	// Make sure the user have the correct rights
 	// This is set in larvitadmingui controllerGlobal
 	if ( ! res.adminRights) return cb(new Error('Invalid rights'), req, res, {});
+
+	res.data	= {'global': res.globalData};
 
 	// Save a POSTed form
 	if (res.globalData.formFields.save !== undefined) {
@@ -72,7 +73,7 @@ exports.run = function (req, res, cb) {
 					res.setHeader('Location', '/adminImageEdit?uuid=' + image.uuid);
 				}
 
-				data.global.messages = ['Saved'];
+				res.data.global.messages = ['Saved'];
 
 				cb();
 			});
@@ -107,9 +108,9 @@ exports.run = function (req, res, cb) {
 
 	async.series(tasks, function (err) {
 		if (err) {
-			data.global.errors = [err.message];
+			res.data.global.errors = [err.message];
 		}
 
-		cb(null, req, res, data);
+		cb(null, req, res);
 	});
 };
