@@ -13,7 +13,7 @@
     "core-js": "2.6.4",
     "fs-extra": "7.0.1",
     "image-type": "3.0.0",
-    "jimp": "0.3.8",
+    "jimp": "0.6.0",
     "larvitamintercom": "0.3.4",
     "larvitamsync": "0.7.2",
     "larvitdbmigration": "4.0.2",
