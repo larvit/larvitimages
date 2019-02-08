@@ -92,7 +92,12 @@ module.exports = function run(req, res) {
 
 			const header = {};
 			imgMime	= mime.lookup(slug) || 'application/octet-stream';
-			header['Cache-Control'] = ['public', 'max-age=900'];
+
+			if (req.urlParsed.query.cacheControl) {
+				header['Cache-Control'] = req.urlParsed.query.cacheControl.split(',');
+			} else {
+				header['Cache-Control'] = ['public', 'max-age=900'];
+			}
 
 			try {
 				const	stats	= fs.statSync(filePath);
