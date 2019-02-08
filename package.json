@@ -14,7 +14,7 @@
     "fs-extra": "7.0.1",
     "image-type": "3.0.0",
     "jimp": "0.3.8",
-    "larvitamintercom": "0.3.1",
+    "larvitamintercom": "0.3.4",
     "larvitamsync": "0.7.2",
     "larvitdbmigration": "4.0.1",
     "larvitslugify": "0.11.4",
