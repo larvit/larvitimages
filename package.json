@@ -11,7 +11,7 @@
     "async": "2.6.1",
     "buffer-equal": "1.0.0",
     "core-js": "2.6.4",
-    "fs-extra": "7.0.0",
+    "fs-extra": "7.0.1",
     "image-type": "3.0.0",
     "jimp": "0.3.8",
     "larvitamintercom": "0.3.1",
