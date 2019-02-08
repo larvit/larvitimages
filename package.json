@@ -30,7 +30,7 @@
     "eslint": "5.4.0",
     "larvitdb": "2.1.0",
     "mocha": "5.2.0",
-    "mocha-eslint": "4.1.0",
+    "mocha-eslint": "5.0.0",
     "sinon": "7.2.3",
     "uuid-validate": "0.0.3"
   },
