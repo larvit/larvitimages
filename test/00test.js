@@ -408,6 +408,134 @@ describe('LarvitImages', function () {
 		});
 	});
 
+	it('should get image by metadata filter', function (done) {
+		const tasks = [];
+
+		let saveObj1,
+			saveObj2;
+
+		saveObj1 = {
+			'file': { 'name': 'img1.jpg' }, 'metadata': [
+				{
+					'name': 'label',
+					'data': 'EIN-LABEL'
+				},
+				{
+					'name': 'category',
+					'data': '1'
+				}
+			]
+		};
+
+		saveObj2 = {
+			'file': { 'name': 'img2.jpg' }, 'metadata': [
+				{
+					'name': 'label',
+					'data': 'EIN-LABEL'
+				},
+				{
+					'name': 'category',
+					'data': '2'
+				}
+			]
+		};
+
+		// Create testimages
+		tasks.push(function (cb) {
+			new jimp(256, 256, 0xFF0000FF, function (err, image) {
+				if (err) throw err;
+
+				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
+					if (err) throw err;
+					saveObj1.file.bin = result;
+					cb();
+				});
+			});
+		});
+
+		tasks.push(function (cb) {
+			new jimp(256, 256, 0xB00B00FF, function (err, image) {
+				if (err) throw err;
+
+				image.getBuffer(jimp.MIME_JPEG, function (err, result) {
+					if (err) throw err;
+					saveObj2.file.bin = result;
+					cb();
+				});
+			});
+		});
+
+		// Save test images
+		tasks.push(function (cb) {
+			img.saveImage(saveObj1, function (err, image) {
+				if (err) throw err;
+				saveObj1.uuid = image.uuid;
+				cb();
+			});
+		});
+
+		tasks.push(function (cb) {
+			img.saveImage(saveObj2, function (err, image) {
+				if (err) throw err;
+				saveObj2.uuid = image.uuid;
+				cb();
+			});
+		});
+
+		// Get images by metadata filter expect two matches
+		tasks.push(function (cb) {
+			const options = {
+				'metadata': {
+					'label': 'EIN-LABEL'
+				}
+			};
+			img.getImages(options, function (err, images) {
+				if (err) throw err;
+				assert.equal(Object.keys(images).length, 2);
+				cb();
+			});
+		});
+
+		// Get images by metadata filter expect one matches
+		tasks.push(function (cb) {
+			const options = {
+				'metadata': {
+					'category': '1'
+				}
+			};
+			img.getImages(options, function (err, images) {
+				if (err) throw err;
+				assert.equal(Object.keys(images).length, 1);
+				assert.equal(images[Object.keys(images)[0]].slug, 'img1.jpg');
+				cb();
+			});
+		});
+
+		// Expect error when getting on more than 60 metadata fields
+		tasks.push(function (cb) {
+			const options = {
+				'metadata': {
+				}
+			};
+
+			for (let i = 0; i < 61; ++ i) {
+				options.metadata['name' + i] = 'data';
+			}
+
+			img.getImages(options, function (err, images) {
+				assert.ok(err);
+				assert.equal(err.message, 'Can not select on more than a total of 60 metadata key value pairs due to database limitation in joins');
+				assert.equal(Object.keys(images).length, 0);
+				cb();
+			});
+		});
+
+		async.series(tasks, function (err) {
+			if (err) throw err;
+			done();
+		});
+	});
+
 	it('should get only binary by slug', function (done) {
 		const	tasks	= [];
 

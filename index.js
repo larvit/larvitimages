@@ -429,6 +429,7 @@ Img.prototype.getImageBin = function getImageBin(options, cb) {
  * @param obj options -	{ // All options are optional!
  *		'slugs':	['blu', 'bla'],	// With or without file ending
  *		'uuids':	[d893b68d-bb64-40ac-bec7-14e640a235a6,d893b68d-bb64-40ac-bec7-14e640a235a6],	//
+ *		'metadata':	{'name': 'data', 'another-name': 'another-value'}
  *		'limit':	10,	// Defaults to 10, explicitly give false for no limit
  *		'offset':	20,	//
  *		'includeBinaryData':	true	// Defaults to false
@@ -437,7 +438,6 @@ Img.prototype.getImageBin = function getImageBin(options, cb) {
  */
 Img.prototype.getImages = function getImages(options, cb) {
 	const	logPrefix	= topLogPrefix + 'getImages() - ',
-		dbFields	= [],
 		metadata	= [],
 		images	= {},
 		tasks	= [],
@@ -486,7 +486,7 @@ Img.prototype.getImages = function getImages(options, cb) {
 
 	that.log.debug(logPrefix + 'Called with options: "' + JSON.stringify(options) + '"');
 
-	function generateWhere() {
+	function generateWhere(dbFields) {
 		let	sql	= '';
 
 		sql +=	'WHERE 1 + 1\n';
@@ -556,10 +556,40 @@ Img.prototype.getImages = function getImages(options, cb) {
 
 	// Get images
 	tasks.push(function (cb) {
+		const dbFields = [];
+
 		let	sql	=	'SELECT images.uuid, images.slug, images.type\n';
 
 		sql	+=	'FROM images_images as images\n';
-		sql	+= generateWhere();
+
+		// Join on metadata
+		if (options.metadata && Object.keys(options.metadata).length) {
+			if (Object.keys(options.metadata).length > 60) {
+				const err = new Error('Can not select on more than a total of 60 metadata key value pairs due to database limitation in joins');
+
+				that.log.warn(logPrefix + err.message);
+
+				return cb(err);
+			}
+
+			let counter = 0;
+
+			for (const name of Object.keys(options.metadata)) {
+				const value = options.metadata[name],
+					uniqueMetadataName = 'metadata' + (++ counter);
+
+				sql += 'JOIN images_images_metadata as ' + uniqueMetadataName;
+				sql += ' ON images.uuid = ' + uniqueMetadataName + '.imageUuid';
+				sql += ' AND ' + uniqueMetadataName + '.name = ?';
+				sql += ' AND ' + uniqueMetadataName + '.data = ?';
+				sql += '\n';
+
+				dbFields.push(name);
+				dbFields.push(value);
+			}
+		}
+
+		sql += generateWhere(dbFields);
 		sql	+= 'ORDER BY images.slug\n';
 
 		if (options.limit) {
@@ -584,10 +614,12 @@ Img.prototype.getImages = function getImages(options, cb) {
 
 	// Get metadata
 	tasks.push(function (cb) {
+		const dbFields = [];
+
 		let	sql	= '';
 
 		sql	+= 'SELECT * FROM images_images_metadata as metadata\n';
-		sql	+= 'WHERE imageUuid IN (SELECT images.uuid FROM images_images as images ' + generateWhere() +  ')';
+		sql += 'WHERE imageUuid IN (SELECT images.uuid FROM images_images as images ' + generateWhere(dbFields) +  ')';
 
 		that.db.query(sql, dbFields, function (err, result) {
 			for (let i = 0; result[i] !== undefined; i ++) {
@@ -613,8 +645,10 @@ Img.prototype.getImages = function getImages(options, cb) {
 
 		if (err) return cb(err, images);
 
+		const dbFields = [];
+
 		// Get total elements for pagination
-		that.db.query('SELECT images.uuid, images.slug, COUNT(*) AS count FROM images_images AS images ' + generateWhere(), dbFields, function (err, result) {
+		that.db.query('SELECT images.uuid, images.slug, COUNT(*) AS count FROM images_images AS images ' + generateWhere(dbFields), dbFields, function (err, result) {
 			if (err) return cb(err, images);
 
 			if (options.includeBinaryData) {
