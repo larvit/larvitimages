@@ -109,9 +109,11 @@ DataWriter.prototype.ready = function ready(cb) {
 	tasks.push(function (cb) {
 		if (that.mode === 'slave') {
 			that.log.verbose(logPrefix + 'mode: "' + that.mode + '", so read');
-			new amsync.SyncClient({
+			amsync.mariadb({
+				'exchange': that.exchangeName + '_dataDump',
 				'intercom': that.intercom,
-				'exchange': that.exchangeName + '_dataDump'
+				'log': that.log,
+				'db': that.db
 			}, cb);
 		} else if (that.mode === 'noSync') {
 			that.log.info(logPrefix + 'mode: "' + that.mode + '", will not sync with others before starting');
