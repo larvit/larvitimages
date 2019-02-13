@@ -1,6 +1,6 @@
 'use strict';
 
-module.exports = function run(req, res, cb) {
+function run(req, res, cb) {
 	const	options	= {};
 
 	// Make sure the user have the correct rights
@@ -25,9 +25,12 @@ module.exports = function run(req, res, cb) {
 
 	req.imgLib.getImages(options, function (err, rows, totalElements) {
 		if (err) return cb(err);
-		
+
 		res.data.images = rows;
 		res.data.pagination.totalElements = totalElements;
 		cb(null, req, res);
 	});
 };
+
+module.exports = run;
+module.exports.run = run;

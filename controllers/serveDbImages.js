@@ -21,7 +21,7 @@ function generateEtag(path) {
 	}
 }
 
-module.exports = function run(req, res) {
+function run(req, res) {
 	const	slug	= path.parse(req.urlParsed.pathname).base,
 		tasks	= [];
 
@@ -117,3 +117,6 @@ module.exports = function run(req, res) {
 
 	async.series(tasks);
 };
+
+module.exports = run;
+module.exports.run = run;

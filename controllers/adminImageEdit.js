@@ -17,7 +17,7 @@ function formatFormData(formData) {
 	}
 }
 
-module.exports = function run(req, res, cb) {
+function run(req, res, cb) {
 	const	tasks	= [];
 
 	let	imgUuid	= res.globalData.urlParsed.query.uuid;
@@ -114,3 +114,6 @@ module.exports = function run(req, res, cb) {
 		cb(null, req, res);
 	});
 };
+
+module.exports = run;
+module.exports.run = run;
