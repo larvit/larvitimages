@@ -29,7 +29,7 @@
   "devDependencies": {
     "eslint": "5.14.0",
     "larvitdb": "2.1.1",
-    "mocha": "5.2.0",
+    "mocha": "6.0.0",
     "mocha-eslint": "5.0.0",
     "sinon": "7.2.4",
     "uuid-validate": "0.0.3"
