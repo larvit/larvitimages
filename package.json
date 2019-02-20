@@ -15,7 +15,7 @@
     "image-type": "3.0.0",
     "jimp": "0.6.0",
     "larvitamintercom": "0.3.5",
-    "larvitamsync": "0.7.3",
+    "larvitamsync": "0.7.4",
     "larvitdbmigration": "4.0.3",
     "larvitslugify": "0.11.4",
     "larvitutils": "2.1.1",
