@@ -1,0 +1,1 @@
+ALTER TABLE `images_images_metadata` MODIFY `data` VARCHAR(1024);
