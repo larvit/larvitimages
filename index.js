@@ -67,6 +67,40 @@ function _fsRemove(path) {
 	});
 }
 
+/**
+ * Promise wrapper for fs.exists
+ * @param {string} path - Path to item to check
+ * @returns {Promise} - A promise that resolves to a boolean telling the exists status of the item
+ */
+function _fsExists(path) {
+	return new Promise((resolve, reject) => {
+		fs.exists(path, (err, exists) => {
+			if (err) {
+				reject(err);
+			} else {
+				resolve(exists);
+			}
+		});
+	});
+}
+
+/**
+ * Promise wrapper for fs.readdir
+ * @param {string} path - Path to dir to read 
+ * @returns {Promise} - Promise that resolves array of string with contents of dir
+ */
+function _fsReadDir(path) {
+	return new Promise((resolve, reject) => {
+		fs.readdir(path, (err, files) => {
+			if (err) {
+				reject(err);
+			} else {
+				resolve(files);
+			}
+		});
+	});
+}
+
 // eslint-disable-next-line padded-blocks
 class Images {
 
@@ -177,7 +211,7 @@ class Images {
 
 		path = that.getPathToImage(uuid, cache);
 
-		if (!fs.existsSync(path)) {
+		if (! await _fsExists(path)) {
 			try {
 				await _mkdirp(path, this.log);
 				this.log.debug(logPrefix + 'Successfully created path "' + path + '"');
@@ -189,323 +223,78 @@ class Images {
 	}
 
 	/**
-	 * 
-	 * @param {object} [options={}] - adsfad
-	 * @param {string} [options.slug] - slug of image to delete
+	 * Removed one (identified by slug or uuid) or all files in image cache
+	 * @param {object} [options={}] - object with options
+	 * @param {object} [options.uuid] - uuid of cached image to delete
+	 * @param {string} [options.slug] - slug of cached image to delete
 	 * @param {object} [options.clearAll=true] - Clears all files in cache, default to true if options not set
+	 * @returns {Promise} - A promise that resolves when done
 	 */
 	clearCache(options) {
 		const logPrefix = topLogPrefix + 'clearCache() - ';
-		const tasks = [];
 
-		
-
-		if (!options) options = {};
-
-		if (typeof options === 'function') {
-			cb = options;
-			options = {};
-		}
-
-		if (Object.keys(options).length === 0) {
-			options.clearAll = true;
-		}
-
-		let exists;
+		if (!options) options = {clearAll: true};
 
 		if (options.clearAll) {
-			try {
-				const stats = await _fsStat(this.cacheDir);
-			} catch (err) {
-				if (err.code === 'ENOENT') {
-					exists = false;
-				} else {
-					throw err;
-				}
-			}
-	
-			exists = stats.isDirectory();
-	
-			// Delete
+			if (! await _fsExists(this.cacheDir)) return;
 			await _fsRemove(this.cacheDir);
 		} else {
-			// If no uuid is given get image data by slug.
-			const image = await this.getImages({slugs: [options.slug]});
+			if (!options.slug && !options.uuid) throw new Error('Slug or uuid of file must be provided')
+			
+			if (options.slug) {
+				// If no uuid is given get image data by slug.
+				const image = await this.getImages({slugs: [options.slug]});
 
-			if (Object.keys(image).length === 0) {
-				that.log.warn(logPrefix + 'No image found in database with slug: ' + options.slug);
-				exists = false;
-			} else {
-				options.uuid = lUtils.formatUuid(image[Object.keys(image)[0]].uuid);
+				if (Object.keys(image).length === 0) {
+					this.log.warn(logPrefix + 'No image found in database with slug: ' + options.slug);
+					return;
+				} else {
+					options.uuid = lUtils.formatUuid(image[Object.keys(image)[0]].uuid);
+				}
 			}
 
 			// Check if the folder exists at all
-			let path;
-
-			if (exists === false) return;
-
-			path = await this.getPathToImage(options.uuid, true);
+			const folderPath = await this.getPathToImage(options.uuid, true);
 	
-			if (path === false) {
-				const err = new Error('Could not get path to file with uuid "' + uuid + '"');
+			if (! await _fsExists(folderPath)) return;
 
-				this.log.warn(logPrefix + err.message);
-				return;
+			const files = await _fsReadDir(folderPath);
+			const tasks = [];
+
+			for (let i = 0; files[i] !== undefined; i++) {
+				const	fileName = files[i];
+
+				if (fileName.substring(0, options.uuid.length) === options.uuid) {
+					tasks.push(new Promise((resolve, reject) => {
+						fs.unlink(path.join(folderPath, fileName), err => {
+							if (err) {
+								this.log.warn(logPrefix + 'Could not remove file: "' + fileName + '", err: ' + err.message);
+								reject(err);
+							} else {
+								resolve();
+							}
+						});
+					}));
+				}
 			}
 
-			const stats = await _fsStat(path);
-	
-				fs.stat(path, function (err, stats) {
-					if (err && err.code === 'ENOENT') {
-						exists = false;
-	
-						return cb();
-					} else if (err) {
-						that.log.error(logPrefix + 'Unknown error when fs.stat(' + that.cacheDir + '): ' + err.message);
-	
-						return cb(err);
-					}
-	
-					exists = stats.isDirectory();
-					cb();
-				});
-			});
-	
-			// Remove files
-			tasks.push(function (cb) {
-				const	tasks = [];
-	
-				let	path;
-	
-				if (exists === false) return cb();
-	
-				path = that.getPathToImage(options.uuid, true);
-	
-				if (path === false) {
-					const	err = new Error('Could not get path to file with uuid "' + uuid + '"');
-	
-					that.log.warn(logPrefix + err.message);
-	
-					return cb(err);
-				}
-	
-				fs.readdir(path, function (err, files) {
-					if (err) {
-						that.log.warn(logPrefix + 'Could not read dir for image uuid: "' + options.uuid + '", err: ' + err.message);
-	
-						return cb(err);
-					}
-	
-					for (let i = 0; files[i] !== undefined; i++) {
-						const	fileName = files[i];
-	
-						if (fileName.substring(0, options.uuid.length) === options.uuid) {
-							tasks.push(function (cb) {
-								fs.unlink(path + fileName, function (err) {
-									if (err) {
-										that.log.warn(logPrefix + 'Could not remove file: "' + fileName + '", err: ' + err.message);
-									}
-									cb(err);
-								});
-							});
-						}
-					}
-	
-					async.parallel(tasks, cb);
-				});
-			});
+			await Promise.all(tasks);
 		}
-	
-		async.series(tasks, cb);
 	}
 }
 
-
-/**
- * Clear Cache
- *
- * @param obj options -	{ // All options are optional!
- *		'slug':	'slug'	// As string
- *		'uuid':	'd893b68d-bb64-40ac-bec7-14e640a235a6'	// As string
- *		'clearAll':	boolean	// If true it clears all cache. Options object empty = true
- *	}
- * @param func cb - callback(err)
- */
-Img.prototype.clearCache = function clearCache(options, cb) {
-	const	logPrefix = topLogPrefix + 'clearCache() - ';
-
-
-	const tasks = [];
-
-
-	const that = this;
-
-	let	exists;
-
-	if (typeof options === 'function') {
-		cb = options;
-		options = {};
-	}
-
-	if (Object.keys(options).length === 0) {
-		options.clearAll = true;
-	}
-
-	if (typeof cb !== 'function') {
-		cb = function () {};
-	}
-
-	if (options.clearAll) {
-		tasks.push(function (cb) {
-			fs.stat(that.cacheDir, function (err, stats) {
-				if (err && err.code === 'ENOENT') {
-					exists = false;
-
-					return cb();
-				} else if (err) {
-					that.log.error(logPrefix + 'Unknown error when fs.stat(' + that.cacheDir + '): ' + err.message);
-
-					return cb(err);
-				}
-
-				exists = stats.isDirectory();
-				cb();
-			});
-		});
-
-		// Delete
-		tasks.push(function (cb) {
-			fs.remove(that.cacheDir, cb);
-		});
-	} else {
-		// If no uuid is given get image data by slug.
-		if (options.uuid === undefined) {
-			tasks.push(function (cb) {
-				that.getImages({slugs: [options.slug]}, function (err, image) {
-					if (err) {
-						that.log.warn(logPrefix + 'Could not run getImages(), err: ' + err.message);
-
-						return cb(err);
-					}
-
-					if (Object.keys(image).length === 0) {
-						that.log.warn(logPrefix + 'No image found in database with slug: ' + options.slug);
-						exists = false;
-					} else {
-						options.uuid = lUtils.formatUuid(image[Object.keys(image)[0]].uuid);
-					}
-					cb();
-				});
-			});
-		}
-
-		// Check if the folder exists at all
-		tasks.push(function (cb) {
-			let path;
-
-			if (exists === false) return cb();
-
-			path = that.getPathToImage(options.uuid, true);
-
-			if (path === false) {
-				const	err = new Error('Could not get path to file with uuid "' + uuid + '"');
-
-				that.log.warn(logPrefix + err.message);
-
-				return cb(err);
-			}
-
-			fs.stat(path, function (err, stats) {
-				if (err && err.code === 'ENOENT') {
-					exists = false;
-
-					return cb();
-				} else if (err) {
-					that.log.error(logPrefix + 'Unknown error when fs.stat(' + that.cacheDir + '): ' + err.message);
-
-					return cb(err);
-				}
-
-				exists = stats.isDirectory();
-				cb();
-			});
-		});
-
-		// Remove files
-		tasks.push(function (cb) {
-			const	tasks = [];
-
-			let	path;
-
-			if (exists === false) return cb();
-
-			path = that.getPathToImage(options.uuid, true);
-
-			if (path === false) {
-				const	err = new Error('Could not get path to file with uuid "' + uuid + '"');
-
-				that.log.warn(logPrefix + err.message);
-
-				return cb(err);
-			}
-
-			fs.readdir(path, function (err, files) {
-				if (err) {
-					that.log.warn(logPrefix + 'Could not read dir for image uuid: "' + options.uuid + '", err: ' + err.message);
-
-					return cb(err);
-				}
-
-				for (let i = 0; files[i] !== undefined; i++) {
-					const	fileName = files[i];
-
-					if (fileName.substring(0, options.uuid.length) === options.uuid) {
-						tasks.push(function (cb) {
-							fs.unlink(path + fileName, function (err) {
-								if (err) {
-									that.log.warn(logPrefix + 'Could not remove file: "' + fileName + '", err: ' + err.message);
-								}
-								cb(err);
-							});
-						});
-					}
-				}
-
-				async.parallel(tasks, cb);
-			});
-		});
-	}
-
-	async.series(tasks, cb);
-};
-
 Img.prototype.getImageBin = function getImageBin(options, cb) {
 	const	logPrefix = topLogPrefix + 'getImageBin() - ';
-
-
-	const that = this;
-
+	const that = this
 	let	originalFile;
-
-
 	let cachedFile;
-
-
 	let fileToLoad;
-
-
 	let imgType;
-
-
 	let uuid;
 
 	that.getImages({slugs: options.slug}, function (err, images) {
 		let	image;
-
-
 		let oPath;
-
-
 		let cPath;
 
 		if (err) return cb(err);
