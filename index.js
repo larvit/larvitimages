@@ -34,23 +34,6 @@ function _mkdirp(path) {
 }
 
 /**
- * Promise wrapper for fs.stats
- * @param {string} path - Path to get stats for
- * @returns {Promise} - A promise that resolves to the stats object 
- */
-function _fsStat(path) {
-	return new Promise((resolve, reject) => {
-		fs.stat(path, (err, stats) => {
-			if (err) {
-				reject(err);
-			} else {
-				resolve(stats);
-			}
-		});
-	});
-}
-
-/**
  * A promise wrapper for fs.remove
  * @param {*} path - Path of item to remove
  * @returns {Promise} - Returns a promise that resolves when stuff is removed
@@ -116,6 +99,219 @@ function _fsReadFile(path) {
 			}
 		});
 	});
+}
+
+/**
+ * A promise wrapper for running a database query, will resolve to the rows fetched
+ * @param {object} db - The db instance to run the query on
+ * @param {string} sql - The query to run
+ * @param {object[]} dbFields - Parameters for the query
+ */
+async function _runQuery(db, sql, dbFields) {
+	return new Promise((resolve, reject) => {
+		db.query(sql, dbFields, (err, rows) => {
+			if (err) {
+				reject(err);
+			} else {
+				resolve(rows);
+			}
+		});
+	});
+};
+
+/**
+ * A promise wrapper for the ready function of the datawriter
+ * @param {object} datawriter - A datawriter instance
+ * @returns {Promise} - A promise that is resolved when the datawriter is ready
+ */
+async function _ready(datawriter) {
+	return new Promise((resolve, reject) => {
+		datawriter.ready(err => {
+			if (err) {
+				reject(err);
+			} else {
+				resolve();
+			}
+		});
+	});
+}
+
+/**
+ * Generates a where-clause based on supplied options
+ * @param {object} [options={}] - filter options
+ * @param {string} [options.q] - Search query
+ * @param {string[]} [options.slugs] - Limit by slugs
+ * @param {string[]} [options.uuids] - Limit by uuids
+ * @param {object} lUtils - larvitutils instance
+ * @returns {object} - Object containing sql query and db fields
+ */
+function _generateWhere(options, lUtils) {
+	const dbFields = [];
+	let sql = '';
+
+	sql += 'WHERE 1 + 1\n';
+
+	if (options.q !== undefined) {
+		sql += ' AND (\n';
+		sql += '   uuid IN (SELECT imageUuid FROM images_images_metadata WHERE data LIKE ?)\n';
+		sql += '   OR slug LIKE ?\n';
+		sql += ')\n';
+		dbFields.push('%' + options.q + '%');
+		dbFields.push('%' + options.q + '%');
+	}
+
+	// Only get images with the current slugs
+	if (options.slugs !== undefined) {
+		if (options.slugs.length === 0) {
+			return 'WHERE 1 = 2\n';
+		}
+
+		sql += ' AND (images.slug IN (';
+
+		for (let i = 0; options.slugs[i] !== undefined; i++) {
+			sql += '?,';
+			dbFields.push(options.slugs[i]);
+		}
+
+		// Select by slug without file ending
+		sql = sql.substring(0, sql.length - 1) + ') OR SUBSTRING(images.slug, 1, CHAR_LENGTH(images.slug) - 1 - CHAR_LENGTH(SUBSTRING_INDEX(images.slug, \'.\', -1))) IN (';
+
+		for (let i = 0; options.slugs[i] !== undefined; i++) {
+			sql += '?,';
+			dbFields.push(options.slugs[i]);
+		}
+
+		sql = sql.substring(0, sql.length - 1) + '))\n';
+	}
+
+	// Only get posts with given ids
+	if (options.uuids !== undefined) {
+		sql += ' AND images.uuid IN (';
+		for (let i = 0; options.uuids[i] !== undefined; i++) {
+			if (Buffer.isBuffer(options.uuids[i])) {
+				sql += '?,';
+				dbFields.push(options.uuids[i]);
+			} else {
+				const uuid = lUtils.uuidToBuffer(options.uuids[i]);
+
+				if (!uuid) throw new Error('Bad uuid: "' + options.uuids[i] + '"');
+
+				sql += '?,';
+				dbFields.push(uuid);
+			}
+		}
+
+		sql = sql.substring(0, sql.length - 1) + ')\n';
+	}
+
+	return { sql, dbFields };
+}
+
+/**
+ * 
+ * @param {object} db - Db instance 
+ * @param {object} log - Logging instance
+ * @param {object} lUtils - larvitutils instance
+ * @param {object} dataWriter - Datawriter instance
+ * @param {object} [options={}] - Options used to find the images wanted
+ * @param {string[]} [options.uuids] - An array of image uuids to filter from
+ * @param {string[]} [options.slugs] - An array of image slugs to filter from
+ * @param {string} [options.q] - Search query
+ * @param {Number} [options.limit=100] - Limits number of results
+ * @param {Number} [options.offset] - Offset result by this amount
+ * @returns {Promise} - A promise that resolves to an object containg an array of image objects and a number indicating the total amount of objects (for pagination)
+ */
+async function _get(db, log, lUtils, dataWriter, options) {
+	const logPrefix = topLogPrefix + '_get() - ';
+
+	if (!options) options = {};
+
+	if (options.limit && isNaN(Number(options.limit))) throw new Error('Invalid limit: ' + options.limit);
+	if (options.offset && isNaN(Number(options.offset))) throw new Error('Invalid offset: ' + options.offset);
+
+	await _ready(dataWriter);
+
+	const dbFields = [];
+	let sql = 'SELECT images.uuid, images.slug, images.type FROM images_images as images\n';
+
+	// Join on metadata
+	// va fan gör den här?
+	if (options.metadata && Object.keys(options.metadata).length) {
+		if (Object.keys(options.metadata).length > 60) {
+			const err = new Error('Can not select on more than a total of 60 metadata key value pairs due to database limitation in joins');
+
+			that.log.warn(logPrefix + err.message);
+
+			throw err;
+		}
+
+		let counter = 0;
+
+		for (const name of Object.keys(options.metadata)) {
+			const value = options.metadata[name];
+
+
+			const uniqueMetadataName = 'metadata' + (++counter);
+
+			sql += 'JOIN images_images_metadata as ' + uniqueMetadataName;
+			sql += ' ON images.uuid = ' + uniqueMetadataName + '.imageUuid';
+			sql += ' AND ' + uniqueMetadataName + '.name = ?';
+			sql += ' AND ' + uniqueMetadataName + '.data = ?';
+			sql += '\n';
+
+			dbFields.push(name);
+			dbFields.push(value);
+		}
+	}
+
+	const whereResult = _generateWhere(options);
+
+	sql += whereResult.sql;
+	sql += 'ORDER BY images.slug\n';
+	dbFields.concat(whereResult.dbFields);
+
+	sql += 'LIMIT ' + options.limit === undefined ? 100 : options.limit + '\n';
+
+	if (options.offset !== undefined) {
+		sql += ' OFFSET ' + options.offset;
+	}
+
+	const images = [];
+	const result = await _runQuery(db, sql, dbFields);
+
+	for (let i = 0; result[i] !== undefined; i++) {
+		images.push({
+			uuid: lUtils.formatUuid(result[i].uuid),
+			slug: result[i].slug,
+			type: result[i].type,
+			metadata: {}
+		});
+	}
+
+	const metadataDbFields = images.map(i => lUtils.uuidToBuffer(i.uuid));
+	let metadataSql = 'SELECT * FROM images_images_metadata WHERE imageUuid IN (';
+
+	for (let i = 0; i < metadataDbFields.length; i++) {
+		sql += '?,';
+	}
+
+	sql = sql.substr(0, sql.length - 1);
+	sql += ')';
+
+	const metadataRows = await _runQuery(metadataSql, metadataDbFields);
+
+	for (let i = 0; i < metadataRows.length; i++) {
+		const imageUuid = lUtils.formatUuid(metadataRows[i].imageUuid);
+		const image = images.find(i => i.uuid === imageUuid);
+
+		if (!image.metadata[metadataRows[i].name]) image.metadata[metadataRows[i].name] = [];
+		image.metadata[metadataRows[i].name].push(metadataRows[i].value);
+	}
+
+	return {
+		images,
+		totalElements: await _runQuery(db, 'SELECT COUNT(*) AS count ' + whereResult.sql, whereResult.dbFields)[0].count
+	};
 }
 
 // eslint-disable-next-line padded-blocks
@@ -303,8 +499,11 @@ class Images {
 	}
 
 	/**
-	 * 
-	 * @param {object} options - options
+	 * Will return the a buffer with image data of the desired dimensions
+	 * @param {object} options - Options stuff
+	 * @param {string} options.slug - Slug of image to get binary data of
+	 * @param {Number} options.width - Desired width of image
+	 * @param {Number} options.height - Desired height of image
 	 * @returns {Promise} - A promise that resolves to a Buffer with containing binary data of image, or null if image is not found
 	 */
 	async getImageBin(options) {
@@ -340,10 +539,11 @@ class Images {
 	}
 
 	/**
-	 * @param {string} uuid - Uuid of image
+	 * Creates a new image of the desired dimension in the cache directory
+	 * @param {string} uuid - Uuid of original image
 	 * @param {*} [width] - New image width
 	 * @param {*} [height] - New image height
-	 * @returns {Promise} - 
+	 * @returns {Promise} - A promise that is resolves to the path of the newly written image
 	 */
 	async createImage(uuid, width, height) {
 		return new Promise((resolve, reject) => {
@@ -442,342 +642,40 @@ class Images {
 			});
 		});
 	}
+
+	/**
+	 * Returns an image by uuid, otherwise null
+	 * @param {string} uuid - Uuid to identify image
+	 * @returns {Promise} - A promise that resolves to an image object 
+	 */
+	async getByUuid(uuid) {
+		const result = await _get(this.db, this.log, this.lUtils, this.dataWriter, {uuids: [uuid]});
+
+		return result.images[0] || null;
+	}
+
+	/**
+	 * Returns an image by slug, otherwise null
+	 * @param {string} slug - Slug to identify image
+	 * @returns {Promise} - A promise that resolves to an image object 
+	 */
+	async getBySlug(slug) {
+		const rows = await _runQuery(db, 'SELECT uuid FROM images_images WHERE slug = ?', [slug]);
+
+		if (rows.length !== 1) return null;
+
+		return _get(this.db, this.log, this.lUtils, this.dataWriter, {uuids: [this.lUtils.formatUuid(rows[0].uuid)]}).images[0];
+	}
+
+	/**
+	 * Fetches a list of image object and the total image count for the query
+	 * @param {*} options - asdfad
+	 * @returns {Promise} - A promise that resolves to an object with a list of image objects and the total image count for the query
+	 */
+	async list(options) {
+		return _get(this.db, this.log, this.lUtils, this.dataWriter, options);
+	}
 }
-
-Img.prototype.getImageBin = function getImageBin(options, cb) {
-	const	logPrefix = topLogPrefix + 'getImageBin() - ';
-	const that = this;
-	let	originalFile;
-	let cachedFile;
-	let fileToLoad;
-	let imgType;
-	let uuid;
-
-	that.getImages({slugs: options.slug}, function (err, images) {
-		let	image;
-		let oPath;
-		let cPath;
-
-		if (err) return cb(err);
-
-		if (Object.keys(images).length === 0) {
-			return cb();
-		} else {
-			image = images[Object.keys(images)[0]];
-		}
-
-		oPath = that.getPathToImage(image.uuid, false);
-		cPath = that.getPathToImage(image.uuid, true);
-
-		if (oPath === false || cPath === false) {
-			const	err = new Error('Could not get path to file with uuid "' + image.uuid + '"');
-
-			that.log.warn(logPrefix + err.message);
-
-			return cb(err);
-		}
-
-		uuid = image.uuid;
-		imgType =	image.type;
-		originalFile = oPath + uuid + '.' + imgType;
-		cachedFile = cPath + uuid; // ImgType is added later
-		fileToLoad = originalFile; // Default to fetching the original file
-
-		// If custom width and/or height, use cached file instead
-		if (options.width || options.height) {
-			if (options.width)	cachedFile += '_w' + options.width;
-			if (options.height)	cachedFile += '_h' + options.height;
-			cachedFile += '.' + imgType;
-			fileToLoad = cachedFile;
-		}
-
-		// Check if cached file exists, and if so, return it
-		function returnFile(cb) {
-			fs.readFile(fileToLoad, function (err, fileBuf) {
-				if (err || !fileBuf) {
-					createFile(function (err) {
-						if (err) return cb(err);
-						returnFile(cb);
-					});
-
-					return;
-				}
-				cb(null, fileBuf, fileToLoad);
-			});
-		}
-
-		function createFile(cb) {
-			
-		}
-
-		returnFile(cb);
-	});
-};
-
-/**
- * Get images
- *
- * @param obj options -	{ // All options are optional!
- *		'slugs':	['blu', 'bla'],	// With or without file ending
- *		'uuids':	[d893b68d-bb64-40ac-bec7-14e640a235a6,d893b68d-bb64-40ac-bec7-14e640a235a6],	//
- *		'metadata':	{'name': 'data', 'another-name': 'another-value'}
- *		'limit':	10,	// Defaults to 10, explicitly give false for no limit
- *		'offset':	20,	//
- *		'includeBinaryData':	true	// Defaults to false
- *	}
- * @param func cb - callback(err, images)
- */
-Img.prototype.getImages = function getImages(options, cb) {
-	const	logPrefix = topLogPrefix + 'getImages() - ';
-
-
-	const metadata = [];
-
-
-	const images = {};
-
-
-	const tasks = [];
-
-
-	const that = this;
-
-	if (typeof options === 'function') {
-		cb = options;
-		options = {};
-	}
-
-	// Make sure options that should be arrays actually are arrays
-	// This will simplify our lives in the SQL builder below
-	if (options.uuids !== undefined && !(options.uuids instanceof Array)) {
-		options.uuids = [options.uuids];
-	}
-
-	if (options.slugs !== undefined && !(options.slugs instanceof Array)) {
-		options.slugs = [options.slugs];
-	}
-
-	// Trim slugs from slashes
-	if (options.slugs) {
-		_.each(options.slugs, function (slug, idx) {
-			options.slugs[idx] = _.trim(slug, '/');
-		});
-	}
-
-	// Make sure there is an invalid ID in the id list if it is empty
-	// Since the most logical thing to do is replying with an empty set
-	if (options.uuids instanceof Array && options.uuids.length === 0) {
-		options.uuids.push(-1);
-	}
-
-	if (options.limit === undefined) {
-		options.limit = 10;
-	}
-
-	// Convert uuids to buffers
-	if (options.uuids !== undefined) {
-		for (let i = 0; options.uuids[i] !== undefined; i++) {
-			if (!(options.uuids[i] instanceof Buffer)) {
-				options.uuids[i] = lUtils.uuidToBuffer(options.uuids[i]);
-			}
-		}
-	}
-
-	that.log.debug(logPrefix + 'Called with options: "' + JSON.stringify(options) + '"');
-
-	function generateWhere(dbFields) {
-		let	sql = '';
-
-		sql +=	'WHERE 1 + 1\n';
-
-		if (options.q !== undefined) {
-			sql += ' AND (\n';
-			sql += '   uuid IN (SELECT imageUuid FROM images_images_metadata WHERE data LIKE ?)\n';
-			sql += '   OR slug LIKE ?\n';
-			sql += ')\n';
-			dbFields.push('%' + options.q + '%');
-			dbFields.push('%' + options.q + '%');
-		}
-
-		// Only get images with the current slugs
-		if (options.slugs !== undefined) {
-			if (options.slugs.length === 0) {
-				return 'WHERE 1 = 2\n';
-			}
-
-			sql += '	AND (images.slug IN (';
-
-			for (let i = 0; options.slugs[i] !== undefined; i++) {
-				sql += '?,';
-				dbFields.push(options.slugs[i]);
-			}
-
-			// Select by slug without file ending
-			sql = sql.substring(0, sql.length - 1) + ') OR SUBSTRING(images.slug, 1, CHAR_LENGTH(images.slug) - 1 - CHAR_LENGTH(SUBSTRING_INDEX(images.slug, \'.\', -1))) IN (';
-
-			for (let i = 0; options.slugs[i] !== undefined; i++) {
-				sql += '?,';
-				dbFields.push(options.slugs[i]);
-			}
-
-			sql = sql.substring(0, sql.length - 1) + '))\n';
-		}
-
-		// Only get posts with given ids
-		if (options.uuids !== undefined) {
-			sql += '	AND images.uuid IN (';
-			for (let i = 0; options.uuids[i] !== undefined; i++) {
-				if (Buffer.isBuffer(options.uuids[i])) {
-					sql += '?,';
-					dbFields.push(options.uuids[i]);
-				} else {
-					const	uuid = lUtils.uuidToBuffer(options.uuids[i]);
-
-					if (uuid !== false) {
-						sql += '?,';
-						dbFields.push(uuid);
-					} else {
-						sql += '?,';
-						dbFields.push('no match due to bad uuid');
-					}
-				}
-			}
-
-			sql = sql.substring(0, sql.length - 1) + ')\n';
-		}
-
-		return sql;
-	}
-
-	tasks.push(function (cb) {
-		that.dataWriter.ready(cb);
-	});
-
-	// Get images
-	tasks.push(function (cb) {
-		const dbFields = [];
-
-		let	sql =	'SELECT images.uuid, images.slug, images.type\n';
-
-		sql	+=	'FROM images_images as images\n';
-
-		// Join on metadata
-		if (options.metadata && Object.keys(options.metadata).length) {
-			if (Object.keys(options.metadata).length > 60) {
-				const err = new Error('Can not select on more than a total of 60 metadata key value pairs due to database limitation in joins');
-
-				that.log.warn(logPrefix + err.message);
-
-				return cb(err);
-			}
-
-			let counter = 0;
-
-			for (const name of Object.keys(options.metadata)) {
-				const value = options.metadata[name];
-
-
-				const uniqueMetadataName = 'metadata' + (++counter);
-
-				sql += 'JOIN images_images_metadata as ' + uniqueMetadataName;
-				sql += ' ON images.uuid = ' + uniqueMetadataName + '.imageUuid';
-				sql += ' AND ' + uniqueMetadataName + '.name = ?';
-				sql += ' AND ' + uniqueMetadataName + '.data = ?';
-				sql += '\n';
-
-				dbFields.push(name);
-				dbFields.push(value);
-			}
-		}
-
-		sql += generateWhere(dbFields);
-		sql	+= 'ORDER BY images.slug\n';
-
-		if (options.limit) {
-			sql += 'LIMIT ' + parseInt(options.limit) + '\n';
-		}
-
-		if (options.limit && options.offset !== undefined) {
-			sql += ' OFFSET ' + parseInt(options.offset);
-		}
-
-		that.db.query(sql, dbFields, function (err, result) {
-			if (err) return cb(err);
-
-			for (let i = 0; result[i] !== undefined; i++) {
-				images[lUtils.formatUuid(result[i].uuid)] = result[i];
-				images[lUtils.formatUuid(result[i].uuid)].uuid = lUtils.formatUuid(result[i].uuid);
-				images[lUtils.formatUuid(result[i].uuid)].metadata = [];
-			}
-			cb(err);
-		});
-	});
-
-	// Get metadata
-	tasks.push(function (cb) {
-		const dbFields = [];
-
-		let	sql = '';
-
-		sql	+= 'SELECT * FROM images_images_metadata as metadata\n';
-		sql += 'WHERE imageUuid IN (SELECT images.uuid FROM images_images as images ' + generateWhere(dbFields) + ')';
-
-		that.db.query(sql, dbFields, function (err, result) {
-			for (let i = 0; result[i] !== undefined; i++) {
-				result[i].imageUuid = lUtils.formatUuid(result[i].imageUuid);
-				metadata.push(result[i]);
-			}
-			cb(err);
-		});
-	});
-
-	async.series(tasks, function (err) {
-		for (let i = 0; metadata[i] !== undefined; i++) {
-			const	imageUuid = metadata[i].imageUuid;
-
-			if (images[imageUuid] === undefined) {
-				that.log.verbose(logPrefix + 'Image/metadata missmatch. Metadata with imageUuid "' + imageUuid + '" is not assosciated with any image');
-				continue;
-			}
-
-			delete metadata[i].imageUuid;
-			images[imageUuid].metadata.push(metadata[i]);
-		}
-
-		if (err) return cb(err, images);
-
-		const dbFields = [];
-
-		// Get total elements for pagination
-		that.db.query('SELECT images.uuid, images.slug, COUNT(*) AS count FROM images_images AS images ' + generateWhere(dbFields), dbFields, function (err, result) {
-			if (err) return cb(err, images);
-
-			if (options.includeBinaryData) {
-				const	subtasks = [];
-
-				for (let uuid in images) {
-					subtasks.push(function (cb) {
-						const	path = that.getPathToImage(uuid);
-
-						if (err) return cb(err);
-
-						fs.readFile(path + uuid + '.' + images[uuid].type, function (err, image) {
-							if (err) return cb(err);
-							images[uuid].image = image;
-							cb();
-						});
-					});
-				}
-
-				async.parallel(subtasks, function (err) {
-					cb(err, images, result[0].count);
-				});
-			} else {
-				cb(err, images, result[0].count);
-			}
-		});
-	});
-};
 
 Img.prototype.rmImage = function rmImage(uuid, cb) {
 	const	logPrefix = topLogPrefix + 'rmImage() - ';
@@ -1162,4 +1060,4 @@ Img.prototype.saveImage = function saveImage(data, cb) {
 	});
 };
 
-exports = module.exports = Img;
+exports = module.exports = Images;
