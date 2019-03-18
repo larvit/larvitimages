@@ -614,12 +614,19 @@ Img.prototype.getImages = function getImages(options, cb) {
 
 	// Get metadata
 	tasks.push(function (cb) {
+		if (! Object.keys(images).length) return cb();
+
 		const dbFields = [];
 
 		let	sql	= '';
 
 		sql	+= 'SELECT * FROM images_images_metadata as metadata\n';
-		sql += 'WHERE imageUuid IN (SELECT images.uuid FROM images_images as images ' + generateWhere(dbFields) +  ')';
+		sql += 'WHERE imageUuid IN (';
+		for (const imageUuid of Object.keys(images)) {
+			sql += '?,';
+			dbFields.push(lUtils.uuidToBuffer(imageUuid));
+		}
+		sql = sql.substring(0, sql.length - 1) + ')';
 
 		that.db.query(sql, dbFields, function (err, result) {
 			for (let i = 0; result[i] !== undefined; i ++) {
