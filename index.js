@@ -101,6 +101,23 @@ function _fsReadDir(path) {
 	});
 }
 
+/**
+ * Promise wrapper for fs.readFile
+ * @param {string} path - Path to file to read 
+ * @returns {Promise} - Promise that resolves a Buffer with conetents of file
+ */
+function _fsReadFile(path) {
+	return new Promise((resolve, reject) => {
+		fs.readFile(path, (err, data) => {
+			if (err) {
+				reject(err);
+			} else {
+				resolve(data);
+			}
+		});
+	});
+}
+
 // eslint-disable-next-line padded-blocks
 class Images {
 
@@ -211,7 +228,7 @@ class Images {
 
 		path = that.getPathToImage(uuid, cache);
 
-		if (! await _fsExists(path)) {
+		if (!await _fsExists(path)) {
 			try {
 				await _mkdirp(path, this.log);
 				this.log.debug(logPrefix + 'Successfully created path "' + path + '"');
@@ -230,62 +247,206 @@ class Images {
 	 * @param {object} [options.clearAll=true] - Clears all files in cache, default to true if options not set
 	 * @returns {Promise} - A promise that resolves when done
 	 */
-	clearCache(options) {
+	async clearCache(options) {
 		const logPrefix = topLogPrefix + 'clearCache() - ';
 
 		if (!options) options = {clearAll: true};
 
 		if (options.clearAll) {
-			if (! await _fsExists(this.cacheDir)) return;
+			if (!await _fsExists(this.cacheDir)) return;
 			await _fsRemove(this.cacheDir);
-		} else {
-			if (!options.slug && !options.uuid) throw new Error('Slug or uuid of file must be provided')
-			
-			if (options.slug) {
-				// If no uuid is given get image data by slug.
-				const image = await this.getImages({slugs: [options.slug]});
 
-				if (Object.keys(image).length === 0) {
-					this.log.warn(logPrefix + 'No image found in database with slug: ' + options.slug);
-					return;
-				} else {
-					options.uuid = lUtils.formatUuid(image[Object.keys(image)[0]].uuid);
-				}
+			return;
+		}
+
+		if (!options.slug && !options.uuid) throw new Error('Slug or uuid of file must be provided');
+
+		if (options.slug) {
+			// If no uuid is given get image data by slug.
+			const image = await this.getImages({slugs: [options.slug]});
+
+			if (Object.keys(image).length === 0) {
+				this.log.warn(logPrefix + 'No image found in database with slug: ' + options.slug);
+
+				return;
+			} else {
+				options.uuid = lUtils.formatUuid(image[Object.keys(image)[0]].uuid);
 			}
+		}
 
-			// Check if the folder exists at all
-			const folderPath = await this.getPathToImage(options.uuid, true);
-	
-			if (! await _fsExists(folderPath)) return;
+		// Check if the folder exists at all
+		const folderPath = await this.getPathToImage(options.uuid, true);
 
-			const files = await _fsReadDir(folderPath);
+		if (!await _fsExists(folderPath)) return;
+
+		const files = await _fsReadDir(folderPath);
+		const tasks = [];
+
+		for (let i = 0; files[i] !== undefined; i++) {
+			const fileName = files[i];
+
+			if (fileName.substring(0, options.uuid.length) === options.uuid) {
+				tasks.push(new Promise((resolve, reject) => {
+					fs.unlink(path.join(folderPath, fileName), err => {
+						if (err) {
+							this.log.warn(logPrefix + 'Could not remove file: "' + fileName + '", err: ' + err.message);
+							reject(err);
+						} else {
+							resolve();
+						}
+					});
+				}));
+			}
+		}
+
+		await Promise.all(tasks);
+	}
+
+	/**
+	 * 
+	 * @param {object} options - options
+	 * @returns {Promise} - A promise that resolves to a Buffer with containing binary data of image, or null if image is not found
+	 */
+	async getImageBin(options) {
+		const logPrefix = topLogPrefix + 'getImageBin() - ';
+
+		const images = await this.getImages({slugs: [options.slug]});
+
+		if (images.length !== 0) {
+			this.log.verbose(logPrefix + 'Could not find image with slug "' + options.slug + '"');
+
+			return null;
+		}
+
+		const orgPath = this.getPathToImage(images[0].uuid, false) + images[0].uuid + '.' + images[0].type;
+		let cachedPath = this.getPathToImage(images[0].uuid, true) + images[0].uuid;
+
+		// Custom widht/height, look for cached file
+		if (options.width || options.height) {
+			if (options.width) cachedPath += '_w' + options.width;
+			if (options.height) cachedPath += '_h' + options.height;
+			cachedPath += ('.' + images[0].type);
+
+			if (await _fsExists(cachedPath)) return _fsReadFile(cachedPath);
+
+			// Custom resolution file does not exists,  create in cache
+			const path = await this.createImage(images[0].uuid, options.width, options.height);
+
+			return _fsReadFile(path);
+		} else {
+			// Original width/height, return as is
+			return _fsReadFile(orgPath);
+		}
+	}
+
+	/**
+	 * @param {string} uuid - Uuid of image
+	 * @param {*} [width] - New image width
+	 * @param {*} [height] - New image height
+	 * @returns {Promise} - 
+	 */
+	async createImage(uuid, width, height) {
+		return new Promise((resolve, reject) => {
+			const logPrefix = topLogPrefix + '_createFile() - ';
 			const tasks = [];
 
-			for (let i = 0; files[i] !== undefined; i++) {
-				const	fileName = files[i];
+			let image;
+			let newImageName = uuid;
 
-				if (fileName.substring(0, options.uuid.length) === options.uuid) {
-					tasks.push(new Promise((resolve, reject) => {
-						fs.unlink(path.join(folderPath, fileName), err => {
-							if (err) {
-								this.log.warn(logPrefix + 'Could not remove file: "' + fileName + '", err: ' + err.message);
-								reject(err);
-							} else {
-								resolve();
-							}
-						});
-					}));
+			if (!width && !height) return reject(new Error('Width or height must be set'));
+			if (isNaN(Number(width)) || isNaN(Number(height))) return reject(new Error('Width and/or height must be numbers!'));
+
+			// Read file data
+			tasks.push(cb => {  // måste man ha filtyp här?
+				jimp.read(path.join(this.getPathToImage(uuid), uuid), (err, img) => {
+					image = img;
+					cb(err);
+				});
+			});
+
+			// Determine new image size
+			tasks.push(cb => {
+				const imgRatio = image.bitmap.width / image.bitmap.height;
+
+				if (width && !height) {
+					height = Math.round(width / imgRatio);
+				} else if (height && !width) {
+					width = Math.round(height * imgRatio);
 				}
-			}
 
-			await Promise.all(tasks);
-		}
+				newImageName += 'w_' + width;
+				newImageName += 'h_' + height;
+				newImageName += '.' + image.type;
+
+				cb();
+			});
+
+			// Resize image
+			tasks.push(cb => {
+				image.resize(width, height, (err, img) => {
+					if (err) {
+						this.log.warn(logPrefix + 'Failed to resize image: ' + err.message);
+
+						return cb(err);
+					}
+
+					image = img;
+					cb();
+				});
+			});
+
+			// Reduce image quality
+			tasks.push(cb => {
+				image.quality(90, (err, img) => {
+					if (err) {
+						this.log.warn(logPrefix + 'Failed to set image quality to 90: ' + err.message);
+
+						return cb(err);
+					}
+
+					image = img;
+					cb();
+				});
+			});
+
+			// Create directory if needed
+			tasks.push(cb => {
+				if (fs.existsSync(this.getPathToImage(uuid, true))) return cb(); // Directory exits, do nothing
+
+				mkdirp(this.getPathToImage(uuid, true), err => {
+					if (err) {
+						log.warn(logPrefix + 'Failed to create directory "' + this.getPathToImage(uuid) + '": ' + err.message);
+					}
+
+					cb(err);
+				});
+			});
+
+			// Write new file to disk
+			tasks.push(cb => {
+				image.write(path.join(this.getPathToImage(uuid), newImageName), function (err) {
+					if (err) {
+						this.log.warn(logPrefix + 'Could not save image, err: ' + err.message);
+					}
+
+					cb(err);
+				});
+			});
+
+			async.series(tasks, err => {
+				if (err) {
+					reject(err);
+				} else {
+					resolve(path.join(this.getPathToImage(uuid), newImageName));
+				}
+			});
+		});
 	}
 }
 
 Img.prototype.getImageBin = function getImageBin(options, cb) {
 	const	logPrefix = topLogPrefix + 'getImageBin() - ';
-	const that = this
+	const that = this;
 	let	originalFile;
 	let cachedFile;
 	let fileToLoad;
@@ -346,84 +507,7 @@ Img.prototype.getImageBin = function getImageBin(options, cb) {
 		}
 
 		function createFile(cb) {
-			const	locLogPrefix = logPrefix + 'createFile() - ';
-
-			jimp.read(originalFile, function (err, image) {
-				let	imgRatio;
-
-
-				let imgWidth;
-
-
-				let imgHeight;
-
-				if (err) {
-					that.log.warn(locLogPrefix + 'Could not read file "' + originalFile + '", err: ' + err.message);
-
-					return cb(err);
-				}
-
-				if (!options.width && !options.height) {
-					const	err = new Error('Cannot create new file without custom height or width. Should\'ve loaded the original file instead');
-
-					that.log.warn(locLogPrefix + err.message);
-
-					return cb(err);
-				}
-
-				imgWidth = image.bitmap.width;
-				imgHeight = image.bitmap.height;
-				imgRatio = imgWidth / imgHeight;
-
-				// Set the missing height or width if only one is given
-				if (options.width && !options.height) {
-					options.height = Math.round(options.width / imgRatio);
-				}
-
-				if (options.height && !options.width) {
-					options.width = Math.round(options.height * imgRatio);
-				}
-
-				if (!lUtils.isInt(options.height) || !lUtils.isInt(options.width)) {
-					const	err = new Error('Options.height or options.width is not an integer. Options: ' + JSON.stringify(options));
-
-					that.log.warn(locLogPrefix + err.message);
-
-					return cb(err);
-				}
-
-				image.resize(Number(options.width), Number(options.height), function (err, image) {
-					if (err) {
-						that.log.warn(locLogPrefix + 'Could not resize image, err: ' + err.message);
-
-						return cb(err);
-					}
-
-					image.quality(90, function (err, image) {
-						if (err) {
-							that.log.warn(locLogPrefix + 'Could not set image quality to 90, err: ' + err.message);
-
-							return cb(err);
-						}
-
-						mkdirp(path.dirname(cachedFile), function (err) {
-							if (err && err.message.substring(0, 6) !== 'EEXIST') {
-								that.log.warn(locLogPrefix + 'could not mkdirp "' + path.dirname(cachedFile) + '", err: ' + err.message);
-
-								return cb(err);
-							}
-
-							image.write(cachedFile, function (err) {
-								if (err) {
-									that.log.warn(locLogPrefix + 'Could not save image, err: ' + err.message);
-								}
-
-								cb(err);
-							});
-						});
-					});
-				});
-			});
+			
 		}
 
 		returnFile(cb);
