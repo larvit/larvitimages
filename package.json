@@ -10,7 +10,7 @@
   "dependencies": {
     "async": "2.6.2",
     "buffer-equal": "1.0.0",
-    "core-js": "2.6.7",
+    "core-js": "2.6.8",
     "fs-extra": "7.0.1",
     "image-type": "3.1.0",
     "jimp": "0.6.4",
