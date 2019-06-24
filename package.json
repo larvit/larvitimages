@@ -16,7 +16,7 @@
     "jimp": "0.6.4",
     "larvitamintercom": "^0.3.7",
     "larvitamsync": "0.7.4",
-    "larvitdbmigration": "4.0.3",
+    "larvitdbmigration": "5.0.1",
     "larvitslugify": "1.0.0",
     "larvitutils": "2.2.0",
     "lodash": "4.17.11",
