@@ -8,7 +8,7 @@
   },
   "private": false,
   "dependencies": {
-    "async": "3.0.1",
+    "async": "3.2.0",
     "buffer-equal": "1.0.0",
     "core-js": "2.6.9",
     "fs-extra": "8.0.1",
