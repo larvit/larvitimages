@@ -1,6 +1,6 @@
 {
   "name": "larvitimages",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "author": {
     "name": "Mikael 'Lilleman' Göransson",
     "email": "lilleman@larvit.se",
@@ -8,38 +8,43 @@
   },
   "private": false,
   "dependencies": {
-    "async": "3.0.1",
-    "buffer-equal": "1.0.0",
-    "core-js": "2.6.9",
-    "fs-extra": "8.0.1",
     "image-type": "4.1.0",
-    "jimp": "0.6.4",
-    "larvitamintercom": "^0.3.7",
-    "larvitamsync": "0.7.4",
-    "larvitdbmigration": "4.0.3",
-    "larvitslugify": "1.0.0",
-    "larvitutils": "2.2.0",
-    "lodash": "4.17.11",
-    "mime-types": "2.1.24",
-    "mkdirp": "0.5.1",
-    "rimraf": "2.6.3",
-    "uuid": "3.3.2"
+    "jimp": "0.16.1",
+    "larvitdbmigration": "6.1.0",
+    "larvitslugify": "2.0.1",
+    "larvitutils": "5.0.0",
+    "mime-types": "2.1.34",
+    "mkdirp": "1.0.4",
+    "uuid": "8.3.2"
   },
   "description": "Image resizing, admin page and database for images meta data.",
   "devDependencies": {
-    "eslint": "5.16.0",
-    "larvitdb": "2.1.1",
-    "mocha": "6.1.4",
-    "mocha-eslint": "5.0.0",
-    "sinon": "7.3.2",
-    "uuid-validate": "0.0.3"
+    "@istanbuljs/nyc-config-typescript": "1.0.2",
+    "@types/mkdirp": "^1.0.2",
+    "@types/mocha": "9.1.0",
+    "@types/node": "17.0.13",
+    "@types/rimraf": "^3.0.2",
+    "@types/uuid": "8.3.4",
+    "@typescript-eslint/eslint-plugin": "5.10.1",
+    "@typescript-eslint/parser": "5.10.1",
+    "eslint": "8.8.0",
+    "larvitdb": "3.2.0",
+    "mocha": "9.2.0",
+    "nyc": "15.1.0",
+    "rimraf": "3.0.2",
+    "ts-node": "10.4.0",
+    "typescript": "4.5.5"
   },
   "keywords": [
     "img",
     "images",
     "imageadmin"
   ],
-  "main": "index.js",
+  "main": "./dist/index.js",
+  "files": [
+    "/dist",
+    "/dbmigration"
+  ],
   "repository": {
     "url": "https://github.com/larvit/larvitimages",
     "type": "git"
@@ -50,7 +55,11 @@
   },
   "homepage": "https://github.com/larvit/larvitimages",
   "scripts": {
-    "test": "mocha"
+    "build": "rm -rf dist/* && tsc",
+    "lint": "eslint src/*.ts test/*.ts",
+    "test:unit": "mocha --exit --bail -r ts-node/register 'test/**/*.ts'",
+    "test:cov": "nyc mocha --exit --bail -r ts-node/register 'test/**/*.ts'",
+    "test": "npm run lint && npm run test:cov"
   },
   "license": "MIT",
   "maintainers": [
