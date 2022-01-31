@@ -35,7 +35,7 @@ serverConf.customRoutes = [{
 const	winston	= require('winston'),
 	ImgLib	= require('larvitimages'),
 	log	= winston.createLogger({'transports': [new winston.transports.Console()]}),
-	db	= require('larvitdb'),
+	Db	= require('larvitdb'),
 	img = new ImgLib({
 		'db':	db,
 
@@ -43,15 +43,9 @@ const	winston	= require('winston'),
 		'storagePath':	process.cwd() + '/larvitimages',	// This is the default
 		'cachePath':	require('os').tmpdir() + '/larvitimages_cache',	// This is the default
 		'log':	log,	// Will use a basic console.log/error log if not set
-		'mode':	'noSync',	// This is the default, other options is "master" and "slave"
-		'intercom':	new (require('larvitamintercom'))('loopback interface'),	// This is the default
-		'exchangeName':	'larvitimages',	// This is the default, RabbitMQ exchange name for the datawriter
-		'amsync_host':	null,	// See larvitamsync for details
-		'amsync_minPort':	null,	// See larvitamsync for details
-		'amsync_maxPort':	null	// See larvitamsync for details
 	});
 
-db.setup({
+const db = new Db({
 	'connectionLimit':	10,
 	'sockehosttPath':	'127.0.0.1',
 	'user':	'foo',
@@ -89,11 +83,7 @@ const image = {
 				]
 			};
 
-img.saveImage(saveObj, function(err, image) {
-	if (err) throw err;
-	// Image is saved, to something fun
-	cb();
-});
+const savedImage = await img.saveImage(saveObj); // Throws on error
 ```
 
 ### Get image by uuid
@@ -104,11 +94,7 @@ const options = {
 	'includeBinaryData':	true // If false or undefined only image data will be fetched.
 };
 
-img.getImages(options, function(err, image) {
-	if (err) throw err;
-	// Do something with you image
-	cb();
-});
+const { images, totalElements } = await img.getImages(options); // Throws on error
 ```
 
 ### Get image by slug
@@ -119,9 +105,5 @@ const options = {
 	'includeBinaryData':	true // If false or undefined only image data will be fetched.
 };
 
-img.getImages(options, function(err, image) {
-	if (err) throw err;
-	// Do something with you image
-	cb();
-});
+const { images, totalElements } = await img.getImages(options); // Throws on error
 ```
