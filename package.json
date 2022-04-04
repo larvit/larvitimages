@@ -10,7 +10,7 @@
   "dependencies": {
     "image-type": "4.1.0",
     "jimp": "0.16.1",
-    "larvitdbmigration": "6.1.0",
+    "larvitdbmigration": "6.1.2",
     "larvitslugify": "2.0.1",
     "larvitutils": "5.0.0",
     "mime-types": "2.1.34",
