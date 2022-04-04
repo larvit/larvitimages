@@ -12,7 +12,7 @@
     "jimp": "0.16.1",
     "larvitdbmigration": "6.1.0",
     "larvitslugify": "2.0.1",
-    "larvitutils": "5.0.0",
+    "larvitutils": "5.0.4",
     "mime-types": "2.1.34",
     "mkdirp": "1.0.4",
     "uuid": "8.3.2"
