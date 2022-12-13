@@ -406,6 +406,8 @@ export class ImgLib {
 
 			// Only get images with the current slugs
 			if (options.slugs !== undefined) {
+				const searchWithoutFileEnding = (options.slugs as string[]).some(slug => slug.includes('.'));
+
 				if (options.slugs.length === 0) {
 					return 'WHERE 1 = 2\n';
 				}
@@ -417,12 +419,14 @@ export class ImgLib {
 					dbFields.push(options.slugs[i]);
 				}
 
-				// Select by slug without file ending
-				sql = sql.substring(0, sql.length - 1) + ') OR SUBSTRING(images.slug, 1, CHAR_LENGTH(images.slug) - 1 - CHAR_LENGTH(SUBSTRING_INDEX(images.slug, \'.\', -1))) IN (';
+				if (searchWithoutFileEnding) {
+					// Select by slug without file ending
+					sql = sql.substring(0, sql.length - 1) + ') OR SUBSTRING(images.slug, 1, CHAR_LENGTH(images.slug) - 1 - CHAR_LENGTH(SUBSTRING_INDEX(images.slug, \'.\', -1))) IN (';
 
-				for (let i = 0; options.slugs[i] !== undefined; i++) {
-					sql += '?,';
-					dbFields.push(options.slugs[i]);
+					for (let i = 0; options.slugs[i] !== undefined; i++) {
+						sql += '?,';
+						dbFields.push(options.slugs[i]);
+					}
 				}
 
 				sql = sql.substring(0, sql.length - 1) + '))\n';
