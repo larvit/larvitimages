@@ -366,7 +366,8 @@ export class ImgLib {
 		offset?: number | string,
 		includeBinaryData?: boolean,
 		q?: string,
-	}): Promise<{ images: Record<string, Image>, totalElements: number }> {
+		getTotalElements?: boolean
+	}): Promise<{ images: Record<string, Image>, totalElements?: number }> {
 		const logPrefix = topLogPrefix + 'getImages() - ';
 		const metadata = [];
 		const images: Record<string, Image> = {};
@@ -539,6 +540,10 @@ export class ImgLib {
 
 			delete metadata[i].imageUuid;
 			images[imageUuid].metadata.push(metadata[i]);
+		}
+
+		if (!options.getTotalElements) {
+			return { images };
 		}
 
 		// Get total elements for pagination
