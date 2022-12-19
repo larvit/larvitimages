@@ -148,7 +148,7 @@ export class ImgLib {
 					throw new Error('Slug must be specified when no uuid is specified');
 				}
 
-				const { images } = await this.getImages({ slugs: [options.slug] });
+				const { images } = await this.getImages({ slugs: [options.slug], excludeTotalElements: true });
 
 				if (Object.keys(images).length === 0) {
 					log.warn(`${logPrefix} No image found in database with slug: ${options.slug}`);
@@ -223,7 +223,7 @@ export class ImgLib {
 			throw new Error('Must specify either slug or uuid');
 		}
 
-		const { images } = await this.getImages({ slugs: options.slug, uuids: options.uuid });
+		const { images } = await this.getImages({ slugs: options.slug, uuids: options.uuid, excludeTotalElements: true });
 		let image;
 
 		if (!Object.keys(images).length) {
@@ -366,7 +366,7 @@ export class ImgLib {
 		offset?: number | string,
 		includeBinaryData?: boolean,
 		q?: string,
-		getTotalElements?: boolean
+		excludeTotalElements?: boolean
 	}): Promise<{ images: Record<string, Image>, totalElements?: number }> {
 		const logPrefix = topLogPrefix + 'getImages() - ';
 		const metadata = [];
@@ -542,7 +542,7 @@ export class ImgLib {
 			images[imageUuid].metadata.push(metadata[i]);
 		}
 
-		if (!options.getTotalElements) {
+		if (options.excludeTotalElements) {
 			return { images };
 		}
 
@@ -774,7 +774,7 @@ export class ImgLib {
 		}
 
 		// Re-read this entry from the database to be sure to get the right deal!
-		const { images } = await this.getImages({ uuids: options.uuid });
+		const { images } = await this.getImages({ uuids: options.uuid, excludeTotalElements: true });
 
 		return Object.values(images)[0];
 	}
