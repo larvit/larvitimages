@@ -398,7 +398,7 @@ export class ImgLib {
 
 			if (options.q !== undefined) {
 				sql += ' AND (\n';
-				sql += '   uuid IN (SELECT imageUuid FROM images_images_metadata WHERE data LIKE ?)\n';
+				sql += '   uuid IN (SELECT imageUuid FROM images_images_metadata WHERE MATCH (data) AGAINST ("?" IN BOOLEAN MODE))\n';
 				sql += '   OR slug LIKE ?\n';
 				sql += ')\n';
 				dbFields.push('%' + options.q + '%');
@@ -407,7 +407,7 @@ export class ImgLib {
 
 			// Only get images with the current slugs
 			if (options.slugs !== undefined) {
-				const searchWithoutFileEnding = (options.slugs as string[]).some(slug => slug.includes('.'));
+				const searchWithoutFileEnding = !(options.slugs as string[]).some(slug => slug.includes('.'));
 
 				if (options.slugs.length === 0) {
 					return 'WHERE 1 = 2\n';
@@ -475,7 +475,7 @@ export class ImgLib {
 				sql += 'JOIN images_images_metadata as ' + uniqueMetadataName;
 				sql += ' ON images.uuid = ' + uniqueMetadataName + '.imageUuid';
 				sql += ' AND ' + uniqueMetadataName + '.name = ?';
-				sql += ' AND ' + uniqueMetadataName + '.data = ?';
+				sql += ' AND MATCH (' + uniqueMetadataName + '.data) AGAINST ("?" IN BOOLEAN MODE)';
 				sql += '\n';
 
 				dbFields.push(name);
