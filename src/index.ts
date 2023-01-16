@@ -9,6 +9,7 @@ import os from 'os';
 import path from 'path';
 import { slugify } from 'larvitslugify';
 import * as uuidLib from 'uuid';
+import crypto from 'crypto';
 
 const topLogPrefix = 'larvitimages: index.js:';
 const lUtils = new Utils();
@@ -361,6 +362,7 @@ export class ImgLib {
 	async getImages(options: {
 		slugs?: string[] | string,
 		uuids?: string[] | string,
+		identifiers?: string[] | string,
 		metadata?: Record<string, string>,
 		limit?: number | string,
 		offset?: number | string,
@@ -380,7 +382,9 @@ export class ImgLib {
 		if (options.slugs !== undefined && !Array.isArray(options.slugs)) {
 			options.slugs = [options.slugs];
 		}
-
+		if (options.identifiers !== undefined && !Array.isArray(options.identifiers)) {
+			options.identifiers = [options.identifiers];
+		}
 		// Trim slugs from slashes
 		options.slugs = options.slugs?.map(x => x.replace('^/+|/+$/g', ''));
 
@@ -398,7 +402,7 @@ export class ImgLib {
 
 			if (options.q !== undefined) {
 				sql += ' AND (\n';
-				sql += '   uuid IN (SELECT imageUuid FROM images_images_metadata WHERE MATCH (data) AGAINST ("?" IN BOOLEAN MODE))\n';
+				sql += '   uuid IN (SELECT imageUuid FROM images_images_metadata WHERE data LIKE ?)\n';
 				sql += '   OR slug LIKE ?\n';
 				sql += ')\n';
 				dbFields.push('%' + options.q + '%');
@@ -449,6 +453,19 @@ export class ImgLib {
 				sql = sql.substring(0, sql.length - 1) + ')\n';
 			}
 
+			// Only get posts with the given identifiers
+			if (options.identifiers !== undefined) {
+				sql += ' AND images.identifier IN (';
+				for (let i = 0; options.identifiers[i] !== undefined; i++) {
+					sql += '?,';
+
+					const md5Identifier = crypto.createHash('md5').update(options.identifiers[i]).digest('hex');
+
+					dbFields.push(Buffer.from(md5Identifier, 'hex'));
+				}
+				sql = sql.substring(0, sql.length - 1) + ')\n';
+			}
+
 			return sql;
 		}
 
@@ -475,7 +492,7 @@ export class ImgLib {
 				sql += 'JOIN images_images_metadata as ' + uniqueMetadataName;
 				sql += ' ON images.uuid = ' + uniqueMetadataName + '.imageUuid';
 				sql += ' AND ' + uniqueMetadataName + '.name = ?';
-				sql += ' AND MATCH (' + uniqueMetadataName + '.data) AGAINST ("?" IN BOOLEAN MODE)';
+				sql += ' AND ' + uniqueMetadataName + '.data = ?';
 				sql += '\n';
 
 				dbFields.push(name);
@@ -625,6 +642,7 @@ export class ImgLib {
 			name: string,
 			data: string,
 		}>,
+		identifier?: string
 	}): Promise<Image> {
 		const logPrefix = `${topLogPrefix} saveImage() -`;
 
@@ -750,6 +768,7 @@ export class ImgLib {
 			slug: options.slug,
 			metadata: options.metadata,
 			type: imgType.ext,
+			identifier: options.identifier,
 		});
 
 		// Save file data

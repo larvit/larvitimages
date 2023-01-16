@@ -1,4 +1,5 @@
 import { LogInstance, Utils } from 'larvitutils';
+import crypto from 'crypto';
 
 const topLogPrefix = 'larvitimages: dataWriter.js:';
 
@@ -41,6 +42,7 @@ export class DataWriter {
 		uuid: string,
 		slug?: string,
 		type?: string,
+		identifier?: string,
 		metadata?: Array<{ name: string, data: string }>
 	}): Promise<void> {
 		const logPrefix = `${topLogPrefix} saveImage() - `;
@@ -84,6 +86,16 @@ export class DataWriter {
 		if (image.type) {
 			const sql = 'UPDATE images_images SET type = ? WHERE uuid = ?;';
 			const dbFields = [image.type, uuidBuf];
+
+			await this.db.query(sql, dbFields);
+		}
+
+		if (image.identifier) {
+			const md5Identifier = crypto.createHash('md5').update(image.identifier).digest('hex');
+
+			const identifierBuff = Buffer.from(md5Identifier, 'hex');
+			const sql = 'UPDATE images_images SET identifier = ? WHERE uuid = ?;';
+			const dbFields = [identifierBuff, uuidBuf];
 
 			await this.db.query(sql, dbFields);
 		}

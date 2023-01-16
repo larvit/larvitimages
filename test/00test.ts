@@ -593,4 +593,23 @@ describe('LarvitImages', () => {
 		assert.strictEqual(tmpImage.getWidth(), 128);
 		assert.strictEqual(tmpImage.getHeight(), 128);
 	});
+
+	it('should get image by identifier', async () => {
+		const identifier = 'korv';
+		const saveObj = { file: { name: 'testimage4.jpg', bin: Buffer.of(0) }, identifier };
+
+		// Create testimage
+		const testImage = new Jimp(256, 256, 0xFF0000FF);
+		saveObj.file.bin = await testImage.getBufferAsync(Jimp.MIME_JPEG);
+
+		// Save test image
+		const savedImage = await img.saveImage(saveObj);
+
+		// Get saved image
+		const { images } = await img.getImages({ identifiers: [identifier], includeBinaryData: true });
+		const image = images[Object.keys(images)[0]];
+		assert.strictEqual(Buffer.compare(image.image, saveObj.file.bin), 0);
+		assert.strictEqual(saveObj.file.name, image.slug);
+		assert.strictEqual(savedImage.slug, image.slug);
+	});
 });
