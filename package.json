@@ -1,6 +1,6 @@
 {
   "name": "larvitimages",
-  "version": "0.13.17",
+  "version": "0.13.18",
   "author": {
     "name": "Mikael 'Lilleman' Göransson",
     "email": "lilleman@larvit.se",
@@ -10,11 +10,11 @@
   "dependencies": {
     "image-type": "4.1.0",
     "jimp": "0.22.7",
-    "larvitdbmigration": "7.0.45",
+    "larvitdbmigration": "7.0.47",
     "larvitslugify": "2.0.1",
-    "larvitutils": "5.1.27",
+    "larvitutils": "5.1.28",
     "mime-types": "2.1.35",
-    "mkdirp": "2.1.5",
+    "mkdirp": "2.1.6",
     "uuid": "9.0.0"
   },
   "description": "Image resizing, admin page and database for images meta data.",
@@ -22,11 +22,11 @@
     "@istanbuljs/nyc-config-typescript": "1.0.2",
     "@types/mkdirp": "1.0.2",
     "@types/mocha": "10.0.1",
-    "@types/node": "18.15.3",
+    "@types/node": "18.15.10",
     "@types/rimraf": "3.0.2",
     "@types/uuid": "9.0.1",
-    "@typescript-eslint/eslint-plugin": "5.55.0",
-    "@typescript-eslint/parser": "5.55.0",
+    "@typescript-eslint/eslint-plugin": "5.56.0",
+    "@typescript-eslint/parser": "5.56.0",
     "eslint": "8.36.0",
     "larvitdb": "3.2.38",
     "mocha": "10.2.0",
