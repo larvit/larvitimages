@@ -1,6 +1,6 @@
 {
   "name": "larvitimages",
-  "version": "0.13.66",
+  "version": "0.13.67",
   "author": {
     "name": "Mikael 'Lilleman' Göransson",
     "email": "lilleman@larvit.se",
@@ -31,7 +31,7 @@
     "larvitdb": "3.2.80",
     "mocha": "10.3.0",
     "nyc": "15.1.0",
-    "rimraf": "3.0.2",
+    "rimraf": "5.0.5",
     "ts-node": "10.9.2",
     "typescript": "5.4.3"
   },
