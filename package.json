@@ -1,6 +1,6 @@
 {
   "name": "larvitimages",
-  "version": "0.13.64",
+  "version": "0.13.65",
   "author": {
     "name": "Mikael 'Lilleman' Göransson",
     "email": "lilleman@larvit.se",
@@ -20,7 +20,7 @@
   "description": "Image resizing, admin page and database for images meta data.",
   "devDependencies": {
     "@istanbuljs/nyc-config-typescript": "1.0.2",
-    "@types/mkdirp": "1.0.2",
+    "@types/mkdirp": "2.0.0",
     "@types/mocha": "10.0.6",
     "@types/node": "20.11.28",
     "@types/rimraf": "3.0.2",
