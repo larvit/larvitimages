@@ -1,6 +1,6 @@
 {
   "name": "larvitimages",
-  "version": "0.13.69",
+  "version": "0.13.70",
   "author": {
     "name": "Mikael 'Lilleman' Göransson",
     "email": "lilleman@larvit.se",
@@ -10,9 +10,9 @@
   "dependencies": {
     "image-type": "4.1.0",
     "jimp": "0.22.12",
-    "larvitdbmigration": "7.0.102",
+    "larvitdbmigration": "7.0.103",
     "larvitslugify": "2.0.1",
-    "larvitutils": "5.1.84",
+    "larvitutils": "5.1.86",
     "mime-types": "2.1.35",
     "mkdirp": "2.1.6",
     "uuid": "9.0.1"
@@ -25,10 +25,10 @@
     "@types/node": "20.12.7",
     "@types/rimraf": "3.0.2",
     "@types/uuid": "9.0.8",
-    "@typescript-eslint/eslint-plugin": "7.6.0",
-    "@typescript-eslint/parser": "7.6.0",
+    "@typescript-eslint/eslint-plugin": "7.7.0",
+    "@typescript-eslint/parser": "7.7.0",
     "eslint": "8.57.0",
-    "larvitdb": "3.2.82",
+    "larvitdb": "3.2.83",
     "mocha": "10.4.0",
     "nyc": "15.1.0",
     "rimraf": "3.0.2",
