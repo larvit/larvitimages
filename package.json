@@ -1,6 +1,6 @@
 {
   "name": "larvitimages",
-  "version": "0.13.97",
+  "version": "0.13.98",
   "author": {
     "name": "Mikael 'Lilleman' Göransson",
     "email": "lilleman@larvit.se",
@@ -15,7 +15,7 @@
     "larvitutils": "5.1.113",
     "mime-types": "2.1.35",
     "mkdirp": "2.1.6",
-    "uuid": "10.0.0"
+    "uuid": "11.0.1"
   },
   "description": "Image resizing, admin page and database for images meta data.",
   "devDependencies": {
