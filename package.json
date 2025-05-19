@@ -1,6 +1,6 @@
 {
   "name": "larvitimages",
-  "version": "0.13.128",
+  "version": "0.13.129",
   "author": {
     "name": "Mikael 'Lilleman' Göransson",
     "email": "lilleman@larvit.se",
@@ -8,7 +8,7 @@
   },
   "private": false,
   "dependencies": {
-    "image-type": "4.1.0",
+    "image-type": "5.2.0",
     "jimp": "0.22.12",
     "larvitdbmigration": "7.0.162",
     "larvitslugify": "2.0.1",
