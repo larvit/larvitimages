@@ -1,6 +1,6 @@
 {
   "name": "larvitimages",
-  "version": "0.13.138",
+  "version": "0.13.139",
   "author": {
     "name": "Mikael 'Lilleman' Göransson",
     "email": "lilleman@larvit.se",
@@ -22,7 +22,7 @@
     "@istanbuljs/nyc-config-typescript": "1.0.2",
     "@types/mkdirp": "2.0.0",
     "@types/mocha": "10.0.10",
-    "@types/node": "22.16.5",
+    "@types/node": "24.10.0",
     "@types/rimraf": "3.0.2",
     "@types/uuid": "11.0.0",
     "@typescript-eslint/eslint-plugin": "7.18.0",
