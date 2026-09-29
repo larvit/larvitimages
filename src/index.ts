@@ -2,7 +2,6 @@ import { DataWriter } from './dataWriter';
 import { Log, LogInstance, Utils } from 'larvitutils';
 import { DbMigration } from 'larvitdbmigration';
 import fs from 'fs';
-import imageType from 'image-type';
 import jimp from 'jimp';
 import { mkdirp } from 'mkdirp';
 import os from 'os';
@@ -13,6 +12,14 @@ import crypto from 'crypto';
 
 const topLogPrefix = 'larvitimages: index.js:';
 const lUtils = new Utils();
+
+async function detectImageType(bin: Uint8Array): Promise<{ ext: string, mime: string } | undefined> {
+	// image-type v6 is ESM-only. Hide import() from the compiler so CommonJS emit does not turn it into require().
+	const loadImageType = new Function('return import("image-type")') as () => Promise<typeof import('image-type')>;
+	const { default: imageType } = await loadImageType();
+
+	return imageType(bin);
+}
 
 type Image = {
 	uuid: string,
@@ -660,7 +667,7 @@ export class ImgLib {
 			options.file.bin = await fs.promises.readFile(options.file.path);
 		} else if (options.file.bin && !options.file.path) {
 			// Save bin data to temp file if no path was provided
-			const imgType = imageType(options.file.bin);
+			const imgType = await detectImageType(options.file.bin);
 			if (!imgType) {
 				const err = new Error('Could not determine image type from data, can not save');
 				this.log.warn(`${logPrefix} ${err.message}`);
@@ -682,7 +689,7 @@ export class ImgLib {
 			throw err;
 		}
 
-		let imgType = imageType(options.file.bin);
+		let imgType = await detectImageType(options.file.bin);
 		const filePath = tmpFilePath || options.file.path;
 
 		// As a first step, check the mime type, since this is already given to us
@@ -706,7 +713,7 @@ export class ImgLib {
 
 			// Set imageType from file just to be sure
 			options.file.bin = await fs.promises.readFile(tmpFilePath);
-			imgType = imageType(options.file.bin);
+			imgType = await detectImageType(options.file.bin);
 
 			/* istanbul ignore if */
 			if (!imgType) {
