@@ -16,6 +16,12 @@ const tmpFolder = path.join(os.tmpdir(), 'larvitimages_test');
 const lUtils = new Utils();
 const log = new Log('error');
 
+// Buffer.of() is Buffer<ArrayBuffer>. @types/node 24 types Jimp's getBuffer()
+// as Buffer<ArrayBufferLike>, which cannot be assigned back onto that narrower type.
+function emptyBin(): Buffer {
+	return Buffer.alloc(0);
+}
+
 let db: any;
 let img: ImgLib;
 
@@ -136,7 +142,7 @@ describe('LarvitImages', () => {
 			{
 				file: {
 					name: 'testimage1_1.jpg',
-					bin: Buffer.of(0),
+					bin: emptyBin(),
 				},
 				metadata: [
 					{
@@ -169,7 +175,7 @@ describe('LarvitImages', () => {
 	});
 
 	it('should remove image', async () => {
-		const saveObj = { file: { name: 'testimage2.jpg', bin: Buffer.of(0) } };
+		const saveObj = { file: { name: 'testimage2.jpg', bin: emptyBin() } };
 
 		// Create testimage
 		const testImage = new Jimp({ width: 256, height: 256, color: 0xFF0000FF });
@@ -188,7 +194,7 @@ describe('LarvitImages', () => {
 	});
 
 	it('should get image by uuid', async () => {
-		const saveObj = { file: { name: 'testimage3.jpg', bin: Buffer.of(0) } };
+		const saveObj = { file: { name: 'testimage3.jpg', bin: emptyBin() } };
 
 		// Create testimage
 		const testImage = new Jimp({ width: 256, height: 256, color: 0xFF0000FF });
@@ -206,7 +212,7 @@ describe('LarvitImages', () => {
 	});
 
 	it('should get image by slug', async () => {
-		const saveObj = { file: { name: 'testimage4.jpg', bin: Buffer.of(0) } };
+		const saveObj = { file: { name: 'testimage4.jpg', bin: emptyBin() } };
 
 		// Create testimage
 		const testImage = new Jimp({ width: 256, height: 256, color: 0xFF0000FF });
@@ -223,7 +229,7 @@ describe('LarvitImages', () => {
 	});
 
 	it('should get image by query', async () => {
-		const saveObj = { file: { name: 'testimage55.jpg', bin: Buffer.of(0) }, metadata: [
+		const saveObj = { file: { name: 'testimage55.jpg', bin: emptyBin() }, metadata: [
 			{
 				name: 'party',
 				data: 'fun',
@@ -250,7 +256,7 @@ describe('LarvitImages', () => {
 
 	it('should get image by metadata filter', async () => {
 		const saveObj1 = {
-			file: { name: 'img1.jpg', bin: Buffer.of(0) }, metadata: [
+			file: { name: 'img1.jpg', bin: emptyBin() }, metadata: [
 				{
 					name: 'label',
 					data: 'EIN-LABEL',
@@ -263,7 +269,7 @@ describe('LarvitImages', () => {
 		};
 
 		const saveObj2 = {
-			file: { name: 'img2.jpg', bin: Buffer.of(0) }, metadata: [
+			file: { name: 'img2.jpg', bin: emptyBin() }, metadata: [
 				{
 					name: 'label',
 					data: 'EIN-LABEL',
@@ -309,7 +315,7 @@ describe('LarvitImages', () => {
 	});
 
 	it('should get only binary by slug', async () => {
-		const saveObj = { file: { name: 'testimage5.jpg', bin: Buffer.of(0) } };
+		const saveObj = { file: { name: 'testimage5.jpg', bin: emptyBin() } };
 
 		// Create testimage
 		const testImage = new Jimp({ width: 256, height: 256, color: 0xFF0000FF });
@@ -325,7 +331,7 @@ describe('LarvitImages', () => {
 
 	it('should get only binary by slug with custom height', async () => {
 		const tmpFileName = os.tmpdir() + '/' + uuidLib.v1() + '.jpg';
-		const saveObj = { file: { name: 'testimage6.jpg', bin: Buffer.of(0) } };
+		const saveObj = { file: { name: 'testimage6.jpg', bin: emptyBin() } };
 
 		// Create testimage
 		const testImage = new Jimp({ width: 256, height: 256, color: 0xFF0000FF });
@@ -349,7 +355,7 @@ describe('LarvitImages', () => {
 
 	it('should get only binary by slug with custom width', async () => {
 		const tmpFileName = os.tmpdir() + '/' + uuidLib.v1() + '.jpg';
-		const saveObj = { file: { name: 'testimage7.jpg', bin: Buffer.of(0) } };
+		const saveObj = { file: { name: 'testimage7.jpg', bin: emptyBin() } };
 
 		// Create testimage
 		const testImage = new Jimp({ width: 256, height: 256, color: 0xFF0000FF });
@@ -373,7 +379,7 @@ describe('LarvitImages', () => {
 
 	it('should get only binary by slug with custom height and width', async () => {
 		const tmpFileName = os.tmpdir() + '/' + uuidLib.v1() + '.jpg';
-		const saveObj = { file: { name: 'testimage8.jpg', bin: Buffer.of(0) } };
+		const saveObj = { file: { name: 'testimage8.jpg', bin: emptyBin() } };
 
 		// Create testimage
 		const testImage = new Jimp({ width: 256, height: 256, color: 0xFF0000FF });
@@ -404,7 +410,7 @@ describe('LarvitImages', () => {
 
 	it('should clear cached image based on slug', async () => {
 		const tmpFileName = os.tmpdir() + '/' + uuidLib.v1() + '.jpg';
-		const saveObj = { file: { name: 'testimage9.jpg', bin: Buffer.of(0) } };
+		const saveObj = { file: { name: 'testimage9.jpg', bin: emptyBin() } };
 
 		// Create testimage
 		const testImage = new Jimp({ width: 256, height: 256, color: 0xFF0000FF });
@@ -440,8 +446,8 @@ describe('LarvitImages', () => {
 	it('should clear all cached images', async () => {
 		const tmpFileName1 = os.tmpdir() + '/' + uuidLib.v1() + '.jpg';
 		const tmpFileName2 = os.tmpdir() + '/' + uuidLib.v1() + '.jpg';
-		const saveObj1 = { file: { name: 'testimage9.jpg', bin: Buffer.of(0) } };
-		const saveObj2 = { file: { name: 'testimage19.jpg', bin: Buffer.of(0) } };
+		const saveObj1 = { file: { name: 'testimage9.jpg', bin: emptyBin() } };
+		const saveObj2 = { file: { name: 'testimage19.jpg', bin: emptyBin() } };
 
 		// Create testimage
 		saveObj1.file.bin = await new Jimp({ width: 256, height: 256, color: 0xFF0000FF }).getBuffer(JimpMime.jpeg);
@@ -490,7 +496,7 @@ describe('LarvitImages', () => {
 		const saveObj = {
 			file: { path: __dirname + '/flanders.gif' },
 			slug: 'flanders.gif',
-			bin: Buffer.of(0),
+			bin: emptyBin(),
 		};
 
 		// Save test image
@@ -521,7 +527,7 @@ describe('LarvitImages', () => {
 	});
 
 	it('should throw error when width or height is not a number in getImageBin', async () => {
-		const saveObj = { file: { name: 'testimage9.jpg', bin: Buffer.of(0) } };
+		const saveObj = { file: { name: 'testimage9.jpg', bin: emptyBin() } };
 		saveObj.file.bin = await new Jimp({ width: 256, height: 256, color: 0xFF0000FF }).getBuffer(JimpMime.jpeg);
 		const savedImage = await img.saveImage(saveObj);
 
@@ -530,7 +536,7 @@ describe('LarvitImages', () => {
 	});
 
 	it('should not get any images when slug is empty string', async () => {
-		const saveObj = { file: { name: 'testimage9.jpg', bin: Buffer.of(0) } };
+		const saveObj = { file: { name: 'testimage9.jpg', bin: emptyBin() } };
 		saveObj.file.bin = await new Jimp({ width: 256, height: 256, color: 0xFF0000FF }).getBuffer(JimpMime.jpeg);
 		const savedImage = await img.saveImage(saveObj);
 
@@ -539,7 +545,7 @@ describe('LarvitImages', () => {
 	});
 
 	it('should ignore bad uuids when getting images', async () => {
-		const saveObj = { file: { name: 'testimage9.jpg', bin: Buffer.of(0) } };
+		const saveObj = { file: { name: 'testimage9.jpg', bin: emptyBin() } };
 		saveObj.file.bin = await new Jimp({ width: 256, height: 256, color: 0xFF0000FF }).getBuffer(JimpMime.jpeg);
 		const savedImage = await img.saveImage(saveObj);
 
@@ -559,14 +565,14 @@ describe('LarvitImages', () => {
 	});
 
 	it('saveImage should throw for unsupported image format', async () => {
-		const saveObj = { file: { name: 'testimage9.jpg', bin: Buffer.of(0) } };
+		const saveObj = { file: { name: 'testimage9.jpg', bin: emptyBin() } };
 		saveObj.file.bin = await new Jimp({ width: 256, height: 256, color: 0xFF0000FF }).getBuffer(JimpMime.bmp);
 
 		await assert.rejects(async () => await img.saveImage(saveObj), new Error('Invalid file format, must be of image type PNG, JPEG or GIF'));
 	});
 
 	it('saveImage should throw when trying to save a new image with an existing slug', async () => {
-		const saveObj = { file: { name: 'testimage9.jpg', bin: Buffer.of(0) } };
+		const saveObj = { file: { name: 'testimage9.jpg', bin: emptyBin() } };
 		saveObj.file.bin = await new Jimp({ width: 256, height: 256, color: 0xFF0000FF }).getBuffer(JimpMime.png);
 
 		const savedImage = await img.saveImage(saveObj);
@@ -578,7 +584,7 @@ describe('LarvitImages', () => {
 	});
 
 	it('saveImage should overwrite image data when saving with same slug and uuid', async () => {
-		const saveObj = { file: { name: 'testimage9.jpg', bin: Buffer.of(0) } };
+		const saveObj = { file: { name: 'testimage9.jpg', bin: emptyBin() } };
 		saveObj.file.bin = await new Jimp({ width: 256, height: 256, color: 0xFF0000FF }).getBuffer(JimpMime.png);
 
 		const savedImage = await img.saveImage(saveObj);
@@ -596,7 +602,7 @@ describe('LarvitImages', () => {
 
 	it('should get image by identifier', async () => {
 		const identifier = 'korv';
-		const saveObj = { file: { name: 'testimage4.jpg', bin: Buffer.of(0) }, identifier };
+		const saveObj = { file: { name: 'testimage4.jpg', bin: emptyBin() }, identifier };
 
 		// Create testimage
 		const testImage = new Jimp({ width: 256, height: 256, color: 0xFF0000FF });
