@@ -4,7 +4,7 @@ import { DbMigration } from 'larvitdbmigration';
 import fs from 'fs';
 import imageType from 'image-type';
 import jimp from 'jimp';
-import mkdirp from 'mkdirp';
+import { mkdirp } from 'mkdirp';
 import os from 'os';
 import path from 'path';
 import { slugify } from 'larvitslugify';

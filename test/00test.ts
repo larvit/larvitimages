@@ -3,7 +3,7 @@ import assert from 'assert';
 import Db from 'larvitdb';
 import fs from 'fs';
 import Jimp from 'jimp';
-import mkdirp from 'mkdirp';
+import { mkdirp } from 'mkdirp';
 import os from 'os';
 import path from 'path';
 import rimraf from 'rimraf';
