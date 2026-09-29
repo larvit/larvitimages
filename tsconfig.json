@@ -6,11 +6,12 @@
 		"declarationMap": true,
 		"esModuleInterop": true,
 		"module": "CommonJS",
-		"moduleResolution": "node",
 		"noFallthroughCasesInSwitch": true,
 		"noImplicitReturns": true,
 		"noUnusedLocals": true,
 		"outDir": "./dist",
+		"rootDir": "./src",
+		"types": ["*"],
 		"preserveSymlinks": true,
 		"resolveJsonModule": true,
 		"sourceMap": true,
@@ -22,6 +23,9 @@
 		"src/**/*.ts"
 	],
 	"ts-node": {
-		"files": true
+		"files": true,
+		"compilerOptions": {
+			"rootDir": "."
+		}
 	}
 }
