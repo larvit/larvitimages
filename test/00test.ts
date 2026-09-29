@@ -6,7 +6,7 @@ import Jimp from 'jimp';
 import { mkdirp } from 'mkdirp';
 import os from 'os';
 import path from 'path';
-import rimraf from 'rimraf';
+import { rimraf } from 'rimraf';
 import * as uuidLib from 'uuid';
 
 import { ImgLib } from '../src/index';
@@ -33,7 +33,7 @@ before(async () => {
 
 after(async () => {
 	await db.removeAllTables();
-	await new Promise(res => rimraf(tmpFolder, res));
+	await rimraf(tmpFolder);
 });
 
 beforeEach(async () => {
@@ -47,7 +47,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-	await new Promise(res => rimraf(tmpFolder, res));
+	await rimraf(tmpFolder);
 });
 
 describe('Datawriter', () => {
