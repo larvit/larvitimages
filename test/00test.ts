@@ -24,7 +24,7 @@ before(async () => {
 	const confFile = process.env.DBCONFFILE || __dirname + '/../config/db_test.json';
 	log.verbose('DB config file: "' + confFile + '"');
 
-	// eslint-disable-next-line @typescript-eslint/no-var-requires
+	// eslint-disable-next-line @typescript-eslint/no-require-imports
 	const config = require(confFile);
 	log.verbose('DB config: ' + JSON.stringify(config));
 

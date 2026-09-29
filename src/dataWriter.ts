@@ -48,8 +48,8 @@ export class DataWriter {
 		const logPrefix = `${topLogPrefix} saveImage() - `;
 		const uuidBuf = this.lUtils.uuidToBuffer(image.uuid);
 
-		let sql = '';
-		let dbFields = [];
+		let sql: string;
+		let dbFields: any[];
 
 		if (!uuidBuf) {
 			const err = new Error(`Invalid uuid supplied: ${image.uuid}`);
