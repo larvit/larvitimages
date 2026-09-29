@@ -2,7 +2,7 @@ import { DataWriter } from './dataWriter';
 import { Log, LogInstance, Utils } from 'larvitutils';
 import { DbMigration } from 'larvitdbmigration';
 import fs from 'fs';
-import jimp from 'jimp';
+import { Jimp } from 'jimp';
 import { mkdirp } from 'mkdirp';
 import os from 'os';
 import path from 'path';
@@ -12,6 +12,24 @@ import crypto from 'crypto';
 
 const topLogPrefix = 'larvitimages: index.js:';
 const lUtils = new Utils();
+
+type ExportMime = 'image/jpeg' | 'image/png' | 'image/gif';
+
+function mimeFromExtension(ext: string): ExportMime {
+	if (ext === 'jpg' || ext === 'jpeg') {
+		return 'image/jpeg';
+	}
+
+	if (ext === 'png') {
+		return 'image/png';
+	}
+
+	if (ext === 'gif') {
+		return 'image/gif';
+	}
+
+	throw new Error('Unsupported image extension: ' + ext);
+}
 
 async function detectImageType(bin: Uint8Array): Promise<{ ext: string, mime: string } | undefined> {
 	// image-type v6 is ESM-only. Hide import() from the compiler so CommonJS emit does not turn it into require().
@@ -269,7 +287,7 @@ export class ImgLib {
 		async function createFile(): Promise<void> {
 			const locLogPrefix = `${logPrefix} createFile() -`;
 
-			let image = await jimp.read(originalFile);
+			const image = await Jimp.read(originalFile);
 
 			// Should not happen
 			/* istanbul ignore if */
@@ -299,18 +317,10 @@ export class ImgLib {
 			}
 
 			try {
-				image = await image.resize(Number(options.width), Number(options.height));
+				image.resize({ w: Number(options.width), h: Number(options.height) });
 			} catch (_err) /* istanbul ignore next */ {
 				const err = _err as Error;
 				log.warn(`${locLogPrefix} Could not resize image, err: ${err.message}`);
-				throw err;
-			}
-
-			try {
-				image = await image.quality(90);
-			} catch (_err) /* istanbul ignore next */ {
-				const err = _err as Error;
-				log.warn(`${locLogPrefix} Could not set image quality to 90, err: ${err.message}`);
 				throw err;
 			}
 
@@ -325,10 +335,20 @@ export class ImgLib {
 			}
 
 			try {
-				await image.writeAsync(cachedFile);
+				const mime = mimeFromExtension(imgType);
+				let encoded: Buffer;
+
+				if (mime === 'image/jpeg') {
+					encoded = await image.getBuffer(mime, { quality: 90 });
+				} else {
+					encoded = await image.getBuffer(mime);
+				}
+
+				await fs.promises.writeFile(cachedFile, encoded);
 			} catch (_err) /* istanbul ignore next */ {
 				const err = _err as Error;
 				log.warn(`${locLogPrefix} Could not save image, err: ${err.message}`);
+				throw err;
 			}
 		}
 
@@ -708,8 +728,8 @@ export class ImgLib {
 			this.log.info(`${logPrefix} GIFs not supported. Image will be converted to PNG`);
 			tmpFilePath = `${os.tmpdir()}/${uuidLib.v1()}.png`;
 
-			const image = await jimp.read(filePath);
-			await image.quality(80).writeAsync(tmpFilePath);
+			const image = await Jimp.read(filePath);
+			await fs.promises.writeFile(tmpFilePath, await image.getBuffer('image/png'));
 
 			// Set imageType from file just to be sure
 			options.file.bin = await fs.promises.readFile(tmpFilePath);
@@ -724,7 +744,7 @@ export class ImgLib {
 		} else {
 			// Then actually checks so the file loads in our image lib
 			try {
-				await jimp.read(filePath);
+				await Jimp.read(filePath);
 			} catch (_err) /* istanbul ignore next */ {
 				const err = _err as Error;
 				this.log.warn(`${logPrefix} Unable to open image file: ${err.message}`);
