@@ -287,6 +287,14 @@ export class ImgLib {
 		async function createFile(): Promise<void> {
 			const locLogPrefix = `${logPrefix} createFile() -`;
 
+			// jimp@1.6.1 Jimp.read(path) only hits the filesystem when the path exists.
+			// A missing file falls through to fetch() and throws an error with no code.
+			if (!fs.existsSync(originalFile)) {
+				const err = new Error('ENOENT: no such file or directory, open \'' + originalFile + '\'') as NodeJS.ErrnoException;
+				err.code = 'ENOENT';
+				throw err;
+			}
+
 			const image = await Jimp.read(originalFile);
 
 			// Should not happen
@@ -366,8 +374,13 @@ export class ImgLib {
 		let needsToCreateFile = false;
 		try {
 			imgBuf = await readFile(fileToLoad);
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		} catch (err) {
+			// No resize was requested, so a missing original must stay an fs error.
+			// createFile() only rebuilds a cached width/height variant.
+			if (!options.width && !options.height) {
+				throw err;
+			}
+
 			needsToCreateFile = true;
 		}
 

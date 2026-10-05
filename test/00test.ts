@@ -526,6 +526,18 @@ describe('LarvitImages', () => {
 		await assert.rejects(async () => await img.getImageBin({ slug: 'korv' }));
 	});
 
+	it('should reject getImageBin with ENOENT when the image file is missing', async () => {
+		const saveObj = { file: { name: 'testimage-missing.jpg', bin: emptyBin() } };
+		saveObj.file.bin = await new Jimp({ width: 256, height: 256, color: 0xFF0000FF }).getBuffer(JimpMime.jpeg);
+		const savedImage = await img.saveImage(saveObj);
+		const filePath = img.getPathToImage(savedImage.uuid) + savedImage.uuid + '.' + savedImage.type;
+
+		await fs.promises.unlink(filePath);
+
+		await assert.rejects(async () => await img.getImageBin({ slug: saveObj.file.name }), { code: 'ENOENT' });
+		await assert.rejects(async () => await img.getImageBin({ slug: saveObj.file.name, width: 50 }), { code: 'ENOENT' });
+	});
+
 	it('should throw error when width or height is not a number in getImageBin', async () => {
 		const saveObj = { file: { name: 'testimage9.jpg', bin: emptyBin() } };
 		saveObj.file.bin = await new Jimp({ width: 256, height: 256, color: 0xFF0000FF }).getBuffer(JimpMime.jpeg);
